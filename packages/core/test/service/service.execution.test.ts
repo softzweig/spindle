@@ -20,7 +20,7 @@ describe("ServiceExecution", () => {
       const work = vi.fn(async () => ({ ok: true, data: 42 }) as const);
       const execution = ServiceExecution.of<number>(work);
 
-      await execution.result();
+      await execution.run();
       await execution.unwrap();
       await execution.discard();
 
@@ -28,7 +28,7 @@ describe("ServiceExecution", () => {
     });
 
     it("returns a successful result without throwing", async () => {
-      await expect(succeeds(42).result()).resolves.toEqual({ ok: true, data: 42 });
+      await expect(succeeds(42).run()).resolves.toEqual({ ok: true, data: 42 });
     });
 
     it("returns a failure result without throwing", async () => {
@@ -38,7 +38,7 @@ describe("ServiceExecution", () => {
         message: "Missing",
       };
 
-      await expect(ServiceExecution.of(async () => failure).result()).resolves.toEqual(failure);
+      await expect(ServiceExecution.of(async () => failure).run()).resolves.toEqual(failure);
     });
 
     it("unwraps a successful result", async () => {
@@ -77,11 +77,11 @@ describe("ServiceExecution", () => {
       await expect(succeeds(42).discard()).resolves.toBeUndefined();
     });
 
-    it("propagates a rejected executor through result() and unwrap()", async () => {
+    it("propagates a rejected executor through run() and unwrap()", async () => {
       const failure = new Error("boom");
       const execution = ServiceExecution.of<number>(() => Promise.reject(failure));
 
-      await expect(execution.result()).rejects.toBe(failure);
+      await expect(execution.run()).rejects.toBe(failure);
       await expect(execution.unwrap()).rejects.toBe(failure);
     });
 
@@ -96,7 +96,7 @@ describe("ServiceExecution", () => {
         throw new Error("boom");
       });
 
-      await expect(execution.result()).rejects.toThrow("boom");
+      await expect(execution.run()).rejects.toThrow("boom");
       await expect(execution.discard()).resolves.toBeUndefined();
     });
   });
@@ -201,7 +201,7 @@ describe("ServiceExecution", () => {
         ServiceExecution.fromError<number>(ServiceError.forbidden("Nope")),
       ]);
 
-      await expect(together.result()).resolves.toMatchObject({
+      await expect(together.run()).resolves.toMatchObject({
         ok: false,
         code: ServiceErrorCode.NOT_FOUND,
         message: "Missing",
@@ -242,7 +242,7 @@ describe("ServiceExecution", () => {
         ServiceExecution.fromError<number>(ServiceError.notFound("Missing")),
       ]);
 
-      const result = await settled.result();
+      const result = await settled.run();
 
       expect(result.ok).toBe(true);
     });
@@ -326,14 +326,14 @@ describe("ServiceExecution", () => {
     it("settles a result without running anything", async () => {
       const execution = succeeds(42);
 
-      await expect(execution.result()).resolves.toEqual({ ok: true, data: 42 });
+      await expect(execution.run()).resolves.toEqual({ ok: true, data: 42 });
       await expect(execution.unwrap()).resolves.toBe(42);
     });
 
     it("settles a failure from an error", async () => {
       const execution = ServiceExecution.fromError<number>(ServiceError.conflict("Taken"));
 
-      await expect(execution.result()).resolves.toEqual({
+      await expect(execution.run()).resolves.toEqual({
         ok: false,
         code: ServiceErrorCode.CONFLICT,
         message: "Taken",

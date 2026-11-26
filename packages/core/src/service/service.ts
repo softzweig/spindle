@@ -112,7 +112,7 @@ export class Service<
    * Prepares a {@link ServiceExecution} without running it.
    *
    * The work stays deferred until the returned {@link ServiceExecution} is
-   * executed, through `result`, `unwrap` or `discard`, and every failure it
+   * executed, through `run`, `unwrap` or `discard`, and every failure it
    * produces is folded into a {@link ServiceResult} rather than thrown.
    *
    * @human

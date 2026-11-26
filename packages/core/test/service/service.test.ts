@@ -87,7 +87,7 @@ describe("Service", () => {
       const execution = service.prepare(async () => 42);
 
       expect(execution).toBeInstanceOf(ServiceExecution);
-      await expect(execution.result()).resolves.toEqual({ ok: true, data: 42 });
+      await expect(execution.run()).resolves.toEqual({ ok: true, data: 42 });
       await expect(execution.unwrap()).resolves.toBe(42);
     });
 
@@ -115,7 +115,7 @@ describe("Service", () => {
         throw ServiceError.forbidden("Nope", { action: "delete" });
       });
 
-      await expect(execution.result()).resolves.toEqual({
+      await expect(execution.run()).resolves.toEqual({
         ok: false,
         code: ServiceErrorCode.FORBIDDEN,
         message: "Nope",
@@ -133,7 +133,7 @@ describe("Service", () => {
         throw new Error("boom");
       });
 
-      await expect(execution.result()).resolves.toEqual({
+      await expect(execution.run()).resolves.toEqual({
         ok: false,
         code: ServiceErrorCode.UNKNOWN,
         message: "Unexpected failure",
@@ -146,7 +146,7 @@ describe("Service", () => {
         throw ServiceError.invalidInput("Bad input");
       });
 
-      await expect(execution.result()).resolves.toMatchObject({
+      await expect(execution.run()).resolves.toMatchObject({
         ok: false,
         code: ServiceErrorCode.INVALID_INPUT,
         message: "Bad input",
@@ -168,7 +168,7 @@ describe("Service", () => {
         throw failure;
       });
 
-      await expect(execution.result()).resolves.toEqual({
+      await expect(execution.run()).resolves.toEqual({
         ok: false,
         code: ServiceErrorCode.UNKNOWN,
         message: "Custom failure",
@@ -186,7 +186,7 @@ describe("Service", () => {
       );
       const { service } = setup(createContext({ toServiceFailure: convert }));
 
-      await expect(service.prepare(async () => 1).result()).resolves.toEqual({
+      await expect(service.prepare(async () => 1).run()).resolves.toEqual({
         ok: true,
         data: 1,
       });
@@ -207,7 +207,7 @@ describe("Service", () => {
         return 7;
       });
 
-      await expect(execution.result()).resolves.toEqual({ ok: true, data: 7 });
+      await expect(execution.run()).resolves.toEqual({ ok: true, data: 7 });
       expect(runner.contexts).toEqual([root]);
       expect(seenThis).not.toBe(service);
       expect(seenThis?.getContext().isInTransaction).toBe(true);
@@ -218,7 +218,7 @@ describe("Service", () => {
       const { service } = setup(createContext(), { activates: false });
       const execution = service.prepareTransaction(async () => 1);
 
-      await expect(execution.result()).resolves.toMatchObject({
+      await expect(execution.run()).resolves.toMatchObject({
         ok: false,
         code: ServiceErrorCode.PRECONDITION_FAILED,
         message: "This service is not bound to a transaction",
@@ -231,7 +231,7 @@ describe("Service", () => {
         throw ServiceError.conflict("Clash");
       });
 
-      await expect(execution.result()).resolves.toMatchObject({
+      await expect(execution.run()).resolves.toMatchObject({
         ok: false,
         code: ServiceErrorCode.CONFLICT,
         message: "Clash",
@@ -252,7 +252,7 @@ describe("Service", () => {
         return 3;
       });
 
-      await expect(execution.result()).resolves.toEqual({ ok: true, data: 3 });
+      await expect(execution.run()).resolves.toEqual({ ok: true, data: 3 });
       expect(seenThis).toBe(service);
       expect(seenContext).toBe(context);
     });
@@ -261,7 +261,7 @@ describe("Service", () => {
       const { service } = setup(createContext({ isInTransaction: true, id: "tx" }));
       const execution = service.prepareNonTransaction(async () => 1);
 
-      await expect(execution.result()).resolves.toMatchObject({
+      await expect(execution.run()).resolves.toMatchObject({
         ok: false,
         code: ServiceErrorCode.PRECONDITION_FAILED,
         message: "This service is bound to a transaction",
@@ -274,7 +274,7 @@ describe("Service", () => {
         throw ServiceError.notFound("Missing");
       });
 
-      await expect(execution.result()).resolves.toMatchObject({
+      await expect(execution.run()).resolves.toMatchObject({
         ok: false,
         code: ServiceErrorCode.NOT_FOUND,
         message: "Missing",
@@ -286,7 +286,7 @@ describe("Service", () => {
     it("transactional delegates to prepareTransaction", async () => {
       const { service } = setup(createContext());
 
-      await expect(service.transactional(async () => 9).result()).resolves.toEqual({
+      await expect(service.transactional(async () => 9).run()).resolves.toEqual({
         ok: true,
         data: 9,
       });
@@ -295,7 +295,7 @@ describe("Service", () => {
     it("nontransactional delegates to prepareNonTransaction", async () => {
       const { service } = setup(createContext());
 
-      await expect(service.nontransactional(async () => 9).result()).resolves.toEqual({
+      await expect(service.nontransactional(async () => 9).run()).resolves.toEqual({
         ok: true,
         data: 9,
       });

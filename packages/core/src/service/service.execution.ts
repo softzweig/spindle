@@ -122,7 +122,7 @@ export class ServiceExecution<T> {
    * @see {@link discard}
    * @human
    */
-  result(): Promise<ServiceResult<T>> {
+  run(): Promise<ServiceResult<T>> {
     return this.executeOnce();
   }
 
@@ -135,9 +135,9 @@ export class ServiceExecution<T> {
    *
    * @note
    * For a boundary that cannot return a failure value; a caller that wants to
-   * branch on the outcome should use {@link result} instead.
+   * branch on the outcome should use {@link run} instead.
    *
-   * @see {@link result}
+   * @see {@link run}
    * @see {@link discard}
    * @human
    */
@@ -154,7 +154,7 @@ export class ServiceExecution<T> {
    * The first execution actually runs the prepared work, and subsequent calls observe
    * the same outcome. The underlying prepared work is only executed once through this.
    *
-   * @see {@link result}
+   * @see {@link run}
    * @see {@link unwrap}
    * @human
    */
@@ -170,7 +170,7 @@ export class ServiceExecution<T> {
    * of this execution, and returns either the next {@link ServiceExecution} or a plain
    * value. A failure anywhere in the chain skips the remaining steps and travels to the
    * end, so only the terminal executor has to deal with it. Only a terminal marked action
-   * (e.g. {@link unwrap}, {@link discard}, {@link result}, ...) actually triggers the
+   * (e.g. {@link unwrap}, {@link discard}, {@link run}, ...) actually triggers the
    * execution of the pipeline.
    *
    * @example
@@ -182,7 +182,7 @@ export class ServiceExecution<T> {
    * A step that throws rejects the execution instead of folding; steps are service
    * calls, which fold their own failures.
    *
-   * @see {@link result}
+   * @see {@link run}
    * @see {@link unwrap}
    * @human
    */
@@ -195,7 +195,7 @@ export class ServiceExecution<T> {
       if (!(next instanceof ServiceExecution)) {
         return { ok: true, data: next };
       }
-      return next.result();
+      return next.run();
     });
   }
 
@@ -213,5 +213,5 @@ export class ServiceExecution<T> {
 function runTogether(
   executions: readonly ServiceExecution<unknown>[],
 ): Promise<ServiceResult<unknown>[]> {
-  return Promise.all(executions.map((execution) => execution.result()));
+  return Promise.all(executions.map((execution) => execution.run()));
 }
