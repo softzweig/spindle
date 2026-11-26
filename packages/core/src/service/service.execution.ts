@@ -10,16 +10,16 @@ import { ServiceError } from "./service.error.js";
 export class ServiceExecution<T> {
   constructor(private readonly promise: Promise<ServiceResult<T>>) {}
 
+  /** Returns the result of the execution, without throwing {@link ServiceError} on error. */
+  result(): Promise<ServiceResult<T>> {
+    return this.promise;
+  }
+
   /** Returns the successful result of the execution, or throws {@link ServiceError} on error. */
   async unwrap(): Promise<T> {
     const result = await this.promise;
     if (result.ok) return result.data;
     throw ServiceError.of(result.code, result.message, result.details);
-  }
-
-  /** Returns the result of the execution, without throwing {@link ServiceError} on error. */
-  result(): Promise<ServiceResult<T>> {
-    return this.promise;
   }
 
   /** Discards the execution result, if any, explicitly. **Never** throws. */

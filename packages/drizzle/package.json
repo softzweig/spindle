@@ -1,0 +1,57 @@
+{
+  "name": "@softzweig/spindle-drizzle",
+  "version": "0.0.0",
+  "description": "Drizzle ORM repository bindings for Spindle.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/softzweig/spindle.git",
+    "directory": "packages/drizzle"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./pg-core": {
+      "types": "./dist/pg-core/index.d.ts",
+      "import": "./dist/pg-core/index.js"
+    },
+    "./sqlite-core": {
+      "types": "./dist/sqlite-core/index.d.ts",
+      "import": "./dist/sqlite-core/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "dev": "tsc --project tsconfig.build.json --watch",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@softzweig/spindle-core": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "catalog:",
+    "@libsql/client": "catalog:",
+    "@softzweig/spindle-core": "workspace:*",
+    "@softzweig/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "drizzle-orm": "catalog:",
+    "typescript": "catalog:"
+  }
+}
