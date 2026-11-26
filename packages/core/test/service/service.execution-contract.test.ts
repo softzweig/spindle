@@ -134,3 +134,35 @@ describe("ServiceExecutionContract", () => {
     expect(contract).toBe(service);
   });
 });
+
+describe("ServiceContext", () => {
+  it("accepts a dependency that implements the contract", () => {
+    const other = new GoodService();
+    const context: ServiceContext<{ readonly other: GoodService }> = {
+      isInTransaction: false,
+      other,
+    };
+
+    expect(context.other).toBe(other);
+  });
+
+  it("rejects a dependency that does not implement the contract", () => {
+    const context: ServiceContext<{ readonly other: BadService }> = {
+      isInTransaction: false,
+      // @ts-expect-error a service without the contract cannot be a dependency
+      other: new BadService(),
+    };
+
+    expect(context.isInTransaction).toBe(false);
+  });
+
+  it("leaves members that are not services alone", () => {
+    const repository = { findById: async () => null };
+    const context: ServiceContext<{
+      readonly repository: typeof repository;
+      readonly limit: number;
+    }> = { isInTransaction: false, repository, limit: 10 };
+
+    expect(context.repository).toBe(repository);
+  });
+});

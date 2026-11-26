@@ -14,14 +14,34 @@ type ServiceContextBase = TransactionalContext & {
   readonly toServiceFailure?: (error: unknown) => ServiceFailure;
 };
 
-export type ServiceContext<T extends Record<string, unknown> = Record<string, unknown>> = T &
-  ServiceContextBase;
+/**
+ * Requires every service a context holds to expose executions.
+ *
+ * A service that skipped {@link ServiceExecutionContract} hands raw promises to the
+ * services that depend on it, so the dependency is rejected here instead of at each
+ * call site. Members that are not services, repositories and plain data, pass through
+ * untouched.
+ */
+type EnforcedServices<T extends Record<string, unknown>> = {
+  [K in keyof T]: T[K] extends Service<infer _>
+    ? T[K] extends ServiceExecutionContract<T[K]>
+      ? T[K]
+      : { [P in `Service "${K & string}" must implement ServiceExecutionContract`]: never }
+    : T[K];
+};
+
+export type ServiceContext<T extends Record<string, unknown> = Record<string, unknown>> =
+  EnforcedServices<T> & ServiceContextBase;
 
 export type InferServiceContext<T> = T extends Service<infer C> ? C : never;
 
 /**
  * Requires every public method a concrete service declares to return a
  * {@link ServiceExecution}.
+ *
+ * Any {@link ServiceContext} that holds services at root will enforce that those services
+ * implement the {@link ServiceExecutionContract}. This is one of the reasons why Spindle
+ * is considered "very opinionated".
  *
  * @note
  * We need this only when we want to enforce that all public methods of a service return
