@@ -2,6 +2,7 @@ import { ServiceErrorCode, type ServiceFailure } from "../result.js";
 import { BaseTransactional, FOLLOWS_CONTEXT, type TransactionalContext } from "../transactional.js";
 import { ServiceError } from "./service.error.js";
 import { ServiceExecution } from "./service.execution.js";
+import { Lazy } from "./service.lazy.js";
 
 /**
  * A function the consumer keeps in the context, such as a resolve limit or a download
@@ -23,12 +24,18 @@ type ServiceContextBase = TransactionalContext & {
  * untouched.
  */
 type EnforcedServices<T extends Record<string, unknown>> = {
-  [K in keyof T]: T[K] extends Service<infer _>
-    ? T[K] extends ServiceExecutionContract<T[K]>
-      ? T[K]
-      : { [P in `Service "${K & string}" must implement ServiceExecutionContract`]: never }
-    : T[K];
+  [K in keyof T]: EnforcedService<T[K], K>;
 };
+
+type EnforcedService<TValue, TKey> =
+  // Detected through the marker a service carries rather than `extends Service<...>`:
+  // naming the class would instantiate its context, and two services that depend on each
+  // other make that context circular.
+  TValue extends { readonly [FOLLOWS_CONTEXT]: true }
+    ? TValue extends ServiceExecutionContract<TValue>
+      ? TValue
+      : { [P in `Service "${TKey & string}" must implement ServiceExecutionContract`]: never }
+    : TValue;
 
 export type ServiceContext<T extends Record<string, unknown> = Record<string, unknown>> =
   EnforcedServices<T> & ServiceContextBase;
@@ -105,6 +112,17 @@ export type ServiceExecutionMethod = (...args: never[]) => ServiceExecution<unkn
 export class Service<
   TContext extends ServiceContext = ServiceContext,
 > extends BaseTransactional<TContext> {
+  /**
+   * @param context The context this service reads; any member may be a {@link Lazy}.
+   * @param createTransaction The runner transactions are opened with.
+   */
+  constructor(
+    context: TContext,
+    createTransaction: <T>(context: TContext, fn: (context: TContext) => Promise<T>) => Promise<T>,
+  ) {
+    super(resolveLazies(context), createTransaction);
+  }
+
   /** Marks this service as one its holder rebinds when a transaction starts. */
   readonly [FOLLOWS_CONTEXT] = true;
 
@@ -169,6 +187,32 @@ export class Service<
       return fn.call(this, ctx);
     });
   }
+}
+
+/**
+ * Replaces every {@link Lazy} context member with a getter that resolves it on access.
+ *
+ * Deferred rather than resolved here on purpose: at construction the dependency a cycle
+ * points at usually does not exist yet. A context that holds no placeholder is kept as it
+ * is, so a service still sees exactly the object it was handed.
+ */
+function resolveLazies<TContext extends ServiceContext>(context: TContext): TContext {
+  const placeholders = Object.entries(context).filter(([, value]) => value instanceof Lazy);
+  if (placeholders.length === 0) return context;
+
+  const resolved: Record<string, unknown> = { ...context };
+
+  for (const [key, value] of placeholders) {
+    // The spread installed a data property, so the getter replaces it rather than
+    // being assigned to it.
+    Object.defineProperty(resolved, key, {
+      configurable: true,
+      enumerable: true,
+      get: () => (value as Lazy<unknown>).resolve(),
+    });
+  }
+
+  return resolved as TContext;
 }
 
 /**
