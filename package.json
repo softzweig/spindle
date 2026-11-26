@@ -1,8 +1,8 @@
 {
-  "name": "softzweig-library-template",
+  "name": "spindle",
   "version": "0.0.0",
   "private": true,
-  "description": "Monorepo template for the @softzweig TypeScript libraries.",
+  "description": "Composable primitives for building consistent, provider-independent backend systems.",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.17.1",
