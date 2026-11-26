@@ -89,13 +89,16 @@ export class Service<
   readonly [FOLLOWS_CONTEXT] = true;
 
   /**
-   * Runs a use case and folds every failure into a {@link ServiceResult}.
+   * Prepares a {@link ServiceExecution} without running it.
    *
-   * The returned result is a {@link ServiceExecution} that wraps the outcome of the operation,
-   * capturing both successful results and failures.
+   * The work stays deferred until the returned {@link ServiceExecution} is
+   * executed, through `result`, `unwrap` or `discard`, and every failure it
+   * produces is folded into a {@link ServiceResult} rather than thrown.
+   *
+   * @human
    */
-  execute<T>(fn: (this: this, context: TContext) => Promise<T>): ServiceExecution<T> {
-    return new ServiceExecution(
+  prepare<T>(fn: (this: this, context: TContext) => T | Promise<T>): ServiceExecution<T> {
+    return ServiceExecution.of(() =>
       // The async IIFE turns a synchronous throw inside `fn` into a rejection, so
       // assertions and other guards take the same failure path as async errors. ~vz
       (async () => fn.call(this, this.context))()
@@ -104,18 +107,27 @@ export class Service<
     );
   }
 
-  /** @deprecated Use {@link executeTransaction} instead (leftover from @softzweig/suitcase) */
+  /** @deprecated Use {@link prepareTransaction} instead (leftover from @softzweig/suitcase) */
   transactional<T>(fn: (this: this, context: TContext) => Promise<T>): ServiceExecution<T> {
-    return this.executeTransaction(fn);
+    return this.prepareTransaction(fn);
   }
 
-  /** @deprecated Use {@link executeNonTransaction} instead (leftover from @softzweig/suitcase) */
+  /** @deprecated Use {@link prepareNonTransaction} instead (leftover from @softzweig/suitcase) */
   nontransactional<T>(fn: (this: this, context: TContext) => Promise<T>): ServiceExecution<T> {
-    return this.executeNonTransaction(fn);
+    return this.prepareNonTransaction(fn);
   }
 
-  executeTransaction<T>(fn: (this: this, context: TContext) => Promise<T>): ServiceExecution<T> {
-    return this.execute(() =>
+  /**
+   * Prepares `fn` to run in a transaction, on a copy of this service bound to it.
+   *
+   * The transaction is only opened when the execution is executed, so preparing a
+   * use case that ends up discarded costs nothing.
+   *
+   * @see {@link prepare}
+   * @human
+   */
+  prepareTransaction<T>(fn: (this: this, context: TContext) => Promise<T>): ServiceExecution<T> {
+    return this.prepare(() =>
       this.transaction(function (ctx) {
         this.assertTransaction();
         return fn.call(this, ctx);
@@ -123,8 +135,16 @@ export class Service<
     );
   }
 
-  executeNonTransaction<T>(fn: (this: this, context: TContext) => Promise<T>): ServiceExecution<T> {
-    return this.execute((ctx) => {
+  /**
+   * Prepares `fn` to run outside any transaction, asserting that it is not bound to one.
+   *
+   * The guard runs when the execution is executed, not when it is prepared.
+   *
+   * @see {@link prepare}
+   * @human
+   */
+  prepareNonTransaction<T>(fn: (this: this, context: TContext) => Promise<T>): ServiceExecution<T> {
+    return this.prepare((ctx) => {
       this.assertNotTransaction();
       return fn.call(this, ctx);
     });

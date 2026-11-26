@@ -25,7 +25,7 @@ class GoodService extends Service<TestContext> implements ServiceExecutionContra
   }
 
   find(): ServiceExecution<number> {
-    return new ServiceExecution(Promise.resolve({ ok: true, data: 1 }));
+    return ServiceExecution.fromResult({ ok: true, data: 1 });
   }
 }
 
@@ -34,7 +34,7 @@ class GoodServiceWithProperty
   implements ServiceExecutionContract<GoodServiceWithProperty>
 {
   readonly find = (): ServiceExecution<number> =>
-    new ServiceExecution(Promise.resolve({ ok: true, data: 1 }));
+    ServiceExecution.fromResult({ ok: true, data: 1 });
 
   constructor() {
     super(createContext(), createTransaction);
@@ -50,7 +50,7 @@ class GoodServiceWithProtectedMethod
   }
 
   find(): ServiceExecution<number> {
-    return new ServiceExecution(Promise.resolve({ ok: true, data: 1 }));
+    return ServiceExecution.fromResult({ ok: true, data: 1 });
   }
 
   protected async helper(): Promise<number> {
@@ -82,7 +82,7 @@ class AsyncService extends Service<TestContext> {
   }
 
   async find(): Promise<ServiceExecution<number>> {
-    return new ServiceExecution(Promise.resolve({ ok: true, data: 1 }));
+    return ServiceExecution.fromResult({ ok: true, data: 1 });
   }
 }
 

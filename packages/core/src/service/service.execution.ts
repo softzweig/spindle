@@ -2,28 +2,97 @@ import type { ServiceResult } from "../result.js";
 import { ServiceError } from "./service.error.js";
 
 /**
- * An in-flight service call that resolves to a {@link ServiceResult}.
+ * A prepared service call that runs on demand.
  *
- * Every method observes the same promise, so the underlying operation runs once
- * regardless of how often the execution is inspected.
+ * A service method returns one of these instead of a promise: the work is
+ * described but not started. The executors below perform it on first use, and the
+ * promise they produced is kept, so inspecting an execution from several places
+ * observes a single result rather than one per call.
+ *
+ * @human
  */
 export class ServiceExecution<T> {
-  constructor(private readonly promise: Promise<ServiceResult<T>>) {}
+  private promise: Promise<ServiceResult<T>> | null = null;
 
-  /** Returns the result of the execution, without throwing {@link ServiceError} on error. */
-  result(): Promise<ServiceResult<T>> {
-    return this.promise;
+  protected constructor(private readonly lazyExecutor: () => Promise<ServiceResult<T>>) {}
+
+  /** An execution that runs `lazyExecutor` as soon as it is executed. */
+  static of<T>(lazyExecutor: () => Promise<ServiceResult<T>>) {
+    return new ServiceExecution(lazyExecutor);
   }
 
-  /** Returns the successful result of the execution, or throws {@link ServiceError} on error. */
+  /** An execution already settled with a result, without running anything. */
+  static fromResult<T>(result: ServiceResult<T>) {
+    return new ServiceExecution(() => Promise.resolve(result));
+  }
+
+  /** An execution already settled with a failure carrying `error`. */
+  static fromError<T>(error: ServiceError) {
+    return ServiceExecution.fromResult<T>({
+      ok: false,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+  }
+
+  /**
+   * _[Terminal]_
+   * Executes the call and returns its result, failures included.
+   *
+   * The first execution actually runs the prepared work, and subsequent calls observe
+   * the same outcome. The underlying prepared work is only executed once through this.
+   *
+   * @see {@link unwrap}
+   * @see {@link discard}
+   * @human
+   */
+  result(): Promise<ServiceResult<T>> {
+    return this.executeOnce();
+  }
+
+  /**
+   * _[Terminal]_
+   * Executes the call and returns its data, throwing {@link ServiceError} on failure.
+   *
+   * The first execution actually runs the prepared work, and subsequent calls observe
+   * the same outcome. The underlying prepared work is only executed once through this.
+   *
+   * @note
+   * For a boundary that cannot return a failure value; a caller that wants to
+   * branch on the outcome should use {@link result} instead.
+   *
+   * @see {@link result}
+   * @see {@link discard}
+   * @human
+   */
   async unwrap(): Promise<T> {
-    const result = await this.promise;
+    const result = await this.executeOnce();
     if (result.ok) return result.data;
     throw ServiceError.of(result.code, result.message, result.details);
   }
 
-  /** Discards the execution result, if any, explicitly. **Never** throws. */
+  /**
+   * _[Terminal]_
+   * Executes the call and discards its outcome, ignoring any failures. **Never** throws.
+   *
+   * The first execution actually runs the prepared work, and subsequent calls observe
+   * the same outcome. The underlying prepared work is only executed once through this.
+   *
+   * @see {@link result}
+   * @see {@link unwrap}
+   * @human
+   */
   async discard(): Promise<void> {
-    await this.promise.catch(() => undefined);
+    await this.executeOnce().catch(() => undefined);
+  }
+
+  /** Performs the prepared work once and keeps the promise it produced. */
+  private executeOnce() {
+    // Started inside `Promise.resolve().then`, so a synchronous throw in the
+    // executor reaches the caller as a rejection instead of escaping the call. ~vz
+    this.promise ??= Promise.resolve().then(() => this.lazyExecutor());
+
+    return this.promise;
   }
 }

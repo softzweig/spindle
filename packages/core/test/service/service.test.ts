@@ -81,10 +81,10 @@ describe("Service", () => {
     expect(service[FOLLOWS_CONTEXT]).toBe(true);
   });
 
-  describe("execute", () => {
+  describe("prepare", () => {
     it("folds a successful callback into a success result", async () => {
       const { service } = setup(createContext());
-      const execution = service.execute(async () => 42);
+      const execution = service.prepare(async () => 42);
 
       expect(execution).toBeInstanceOf(ServiceExecution);
       await expect(execution.result()).resolves.toEqual({ ok: true, data: 42 });
@@ -98,7 +98,7 @@ describe("Service", () => {
       let seenContext: TestContext | undefined;
 
       await service
-        .execute(async function (received) {
+        .prepare(async function (received) {
           seenThis = this;
           seenContext = received;
           return 1;
@@ -111,7 +111,7 @@ describe("Service", () => {
 
     it("folds a ServiceError into a failure result", async () => {
       const { service } = setup(createContext());
-      const execution = service.execute(async () => {
+      const execution = service.prepare(async () => {
         throw ServiceError.forbidden("Nope", { action: "delete" });
       });
 
@@ -129,7 +129,7 @@ describe("Service", () => {
 
     it("maps unexpected errors to an unknown failure", async () => {
       const { service } = setup(createContext());
-      const execution = service.execute(async () => {
+      const execution = service.prepare(async () => {
         throw new Error("boom");
       });
 
@@ -142,7 +142,7 @@ describe("Service", () => {
 
     it("folds synchronous throws into a failure result", async () => {
       const { service } = setup(createContext());
-      const execution = service.execute(() => {
+      const execution = service.prepare(() => {
         throw ServiceError.invalidInput("Bad input");
       });
 
@@ -164,7 +164,7 @@ describe("Service", () => {
       const { service } = setup(createContext({ toServiceFailure: convert }));
       const failure = new Error("boom");
 
-      const execution = service.execute(async () => {
+      const execution = service.prepare(async () => {
         throw failure;
       });
 
@@ -186,7 +186,7 @@ describe("Service", () => {
       );
       const { service } = setup(createContext({ toServiceFailure: convert }));
 
-      await expect(service.execute(async () => 1).result()).resolves.toEqual({
+      await expect(service.prepare(async () => 1).result()).resolves.toEqual({
         ok: true,
         data: 1,
       });
@@ -194,14 +194,14 @@ describe("Service", () => {
     });
   });
 
-  describe("executeTransaction", () => {
+  describe("prepareTransaction", () => {
     it("runs the callback in a transaction-bound copy", async () => {
       const root = createContext();
       const { runner, service } = setup(root);
       let seenThis: TestService | undefined;
       let seenContext: TestContext | undefined;
 
-      const execution = service.executeTransaction(async function (context) {
+      const execution = service.prepareTransaction(async function (context) {
         seenThis = this;
         seenContext = context;
         return 7;
@@ -216,7 +216,7 @@ describe("Service", () => {
 
     it("folds a failed transaction guard into a failure result", async () => {
       const { service } = setup(createContext(), { activates: false });
-      const execution = service.executeTransaction(async () => 1);
+      const execution = service.prepareTransaction(async () => 1);
 
       await expect(execution.result()).resolves.toMatchObject({
         ok: false,
@@ -227,7 +227,7 @@ describe("Service", () => {
 
     it("folds a callback failure into a failure result", async () => {
       const { service } = setup(createContext());
-      const execution = service.executeTransaction(async () => {
+      const execution = service.prepareTransaction(async () => {
         throw ServiceError.conflict("Clash");
       });
 
@@ -239,14 +239,14 @@ describe("Service", () => {
     });
   });
 
-  describe("executeNonTransaction", () => {
+  describe("prepareNonTransaction", () => {
     it("runs the callback on the current service", async () => {
       const context = createContext();
       const { service } = setup(context);
       let seenThis: TestService | undefined;
       let seenContext: TestContext | undefined;
 
-      const execution = service.executeNonTransaction(async function (received) {
+      const execution = service.prepareNonTransaction(async function (received) {
         seenThis = this;
         seenContext = received;
         return 3;
@@ -259,7 +259,7 @@ describe("Service", () => {
 
     it("folds a failed non-transaction guard into a failure result", async () => {
       const { service } = setup(createContext({ isInTransaction: true, id: "tx" }));
-      const execution = service.executeNonTransaction(async () => 1);
+      const execution = service.prepareNonTransaction(async () => 1);
 
       await expect(execution.result()).resolves.toMatchObject({
         ok: false,
@@ -270,7 +270,7 @@ describe("Service", () => {
 
     it("folds a callback failure into a failure result", async () => {
       const { service } = setup(createContext());
-      const execution = service.executeNonTransaction(async () => {
+      const execution = service.prepareNonTransaction(async () => {
         throw ServiceError.notFound("Missing");
       });
 
@@ -283,7 +283,7 @@ describe("Service", () => {
   });
 
   describe("deprecated aliases", () => {
-    it("transactional delegates to executeTransaction", async () => {
+    it("transactional delegates to prepareTransaction", async () => {
       const { service } = setup(createContext());
 
       await expect(service.transactional(async () => 9).result()).resolves.toEqual({
@@ -292,7 +292,7 @@ describe("Service", () => {
       });
     });
 
-    it("nontransactional delegates to executeNonTransaction", async () => {
+    it("nontransactional delegates to prepareNonTransaction", async () => {
       const { service } = setup(createContext());
 
       await expect(service.nontransactional(async () => 9).result()).resolves.toEqual({
