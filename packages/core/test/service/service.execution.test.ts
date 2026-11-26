@@ -169,6 +169,159 @@ describe("ServiceExecution", () => {
     });
   });
 
+  describe("all", () => {
+    it("resolves every value, in the order given", async () => {
+      const together: ServiceExecution<[number, string]> = ServiceExecution.all([
+        succeeds(1),
+        ServiceExecution.fromResult({ ok: true, data: "two" }),
+      ]);
+
+      await expect(together.unwrap()).resolves.toEqual([1, "two"]);
+    });
+
+    it("does not run anything until it is executed", async () => {
+      const work = vi.fn(async () => ({ ok: true, data: 1 }) as const);
+      const together = ServiceExecution.all([ServiceExecution.of<number>(work), succeeds(2)]);
+
+      expect(work).not.toHaveBeenCalled();
+
+      await together.unwrap();
+
+      expect(work).toHaveBeenCalledTimes(1);
+    });
+
+    it("resolves an empty set", async () => {
+      await expect(ServiceExecution.all([]).unwrap()).resolves.toEqual([]);
+    });
+
+    it("takes the first failure and drops the values", async () => {
+      const together = ServiceExecution.all([
+        succeeds(1),
+        ServiceExecution.fromError<number>(ServiceError.notFound("Missing")),
+        ServiceExecution.fromError<number>(ServiceError.forbidden("Nope")),
+      ]);
+
+      await expect(together.result()).resolves.toMatchObject({
+        ok: false,
+        code: ServiceErrorCode.NOT_FOUND,
+        message: "Missing",
+      });
+    });
+
+    it("runs a shared execution once", async () => {
+      const work = vi.fn(async () => ({ ok: true, data: 1 }) as const);
+      const shared = ServiceExecution.of<number>(work);
+
+      await ServiceExecution.all([shared, shared]).unwrap();
+
+      expect(work).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("allSettled", () => {
+    it("keeps every outcome, in the order given", async () => {
+      const settled: ServiceExecution<[ServiceResult<number>, ServiceResult<number>]> =
+        ServiceExecution.allSettled([
+          succeeds(1),
+          ServiceExecution.fromError<number>(ServiceError.forbidden("Nope")),
+        ]);
+
+      await expect(settled.unwrap()).resolves.toEqual([
+        { ok: true, data: 1 },
+        {
+          ok: false,
+          code: ServiceErrorCode.FORBIDDEN,
+          message: "Nope",
+          details: undefined,
+        },
+      ]);
+    });
+
+    it("succeeds even when every execution fails", async () => {
+      const settled = ServiceExecution.allSettled([
+        ServiceExecution.fromError<number>(ServiceError.notFound("Missing")),
+      ]);
+
+      const result = await settled.result();
+
+      expect(result.ok).toBe(true);
+    });
+
+    it("does not run anything until it is executed", async () => {
+      const work = vi.fn(async () => ({ ok: true, data: 1 }) as const);
+      const settled = ServiceExecution.allSettled([ServiceExecution.of<number>(work)]);
+
+      expect(work).not.toHaveBeenCalled();
+
+      await settled.unwrap();
+
+      expect(work).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("composition", () => {
+    it("pipes a combined result into a single value", async () => {
+      const total = await ServiceExecution.all([succeeds(1), succeeds(2)])
+        .pipe(([first, second]) => first + second)
+        .unwrap();
+
+      expect(total).toBe(3);
+    });
+
+    it("combines the output of a pipeline with another execution", async () => {
+      const derived = succeeds(2).pipe((data) => data * 10);
+
+      await expect(ServiceExecution.all([derived, succeeds(3)]).unwrap()).resolves.toEqual([20, 3]);
+    });
+
+    it("turns a failed combination into a value with allSettled", async () => {
+      const failing = ServiceExecution.fromError<number>(ServiceError.notFound("Missing"));
+      const settled = ServiceExecution.allSettled([ServiceExecution.all([succeeds(1), failing])]);
+
+      const [combined] = await settled.unwrap();
+
+      expect(combined).toEqual({
+        ok: false,
+        code: ServiceErrorCode.NOT_FOUND,
+        message: "Missing",
+        details: undefined,
+      });
+    });
+
+    it("collects the successes of a settled set", async () => {
+      const failing = ServiceExecution.fromError<number>(ServiceError.forbidden("Nope"));
+
+      const values = await ServiceExecution.allSettled([succeeds(1), failing, succeeds(3)])
+        .pipe((results) => results.flatMap((result) => (result.ok ? [result.data] : [])))
+        .unwrap();
+
+      expect(values).toEqual([1, 3]);
+    });
+
+    it("skips the remaining pipeline when a combined execution fails", async () => {
+      const step = vi.fn(([total]: [number, number]) => total);
+      const failing = ServiceExecution.fromError<number>(ServiceError.unavailable("Down"));
+
+      const error = await ServiceExecution.all([succeeds(1), failing])
+        .pipe(step)
+        .unwrap()
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ServiceError);
+      expect(error).toMatchObject({ code: ServiceErrorCode.UNAVAILABLE, message: "Down" });
+      expect(step).not.toHaveBeenCalled();
+    });
+
+    it("runs a shared execution once across a nested combination", async () => {
+      const work = vi.fn(async () => ({ ok: true, data: 1 }) as const);
+      const shared = ServiceExecution.of<number>(work);
+
+      await ServiceExecution.all([shared, ServiceExecution.all([shared, succeeds(2)])]).unwrap();
+
+      expect(work).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("factories", () => {
     it("settles a result without running anything", async () => {
       const execution = succeeds(42);
