@@ -12,8 +12,8 @@ change lands through a pull request.
 ## Setup
 
 ```bash
-git clone https://github.com/softzweig/<repo>.git
-cd <repo>
+git clone https://github.com/softzweig/spindle.git
+cd spindle
 pnpm install
 pnpm build
 ```
@@ -21,7 +21,7 @@ pnpm build
 If you do not have write access to the repository, fork it first and add the upstream remote:
 
 ```bash
-git remote add upstream https://github.com/softzweig/<repo>.git
+git remote add upstream https://github.com/softzweig/spindle.git
 ```
 
 ## Making a change

@@ -1,11 +1,22 @@
-# Softzweig Library Template
+# Spindle
 
-Monorepo template for the `@softzweig` TypeScript libraries. One pnpm workspace, one Turborepo
-build graph, one Biome config, one Vitest run, Lefthook for git hooks, Changesets for versioning,
-and a CI workflow that verifies every change and publishes from `main`.
+Composable primitives for building consistent, provider-independent backend systems.
 
-Use it as the starting point for a new library: rename the repository, replace `packages/sample`
-with the real package, and keep the rest as it is.
+Spindle provides the seams a backend needs, services, transactions, and the wiring between them,
+without coupling your application to a framework or a database. Think of it as a deliberately small
+take on what NestJS offers: composable primitives instead of a global container and a fixed
+application structure.
+
+One pnpm workspace, one Turborepo build graph, one Biome config, one Vitest run, Lefthook for git
+hooks, Changesets for versioning, and a CI workflow that verifies every change and publishes from
+`main`.
+
+## Packages
+
+| Package                        | Description                                                            |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `@softzweig/spindle-core`      | Services, transactions, and the primitives the other packages build on |
+| `@softzweig/typescript-config` | Shared tsconfig presets (private, never published)                     |
 
 ## Requirements
 
@@ -19,7 +30,7 @@ with the real package, and keep the rest as it is.
 ├── .changeset/            release notes and Changesets config
 ├── .github/workflows/     CI: verify on every change, release from main
 ├── packages/
-│   ├── sample/            minimal library, rename me
+│   ├── core/              @softzweig/spindle-core
 │   └── typescript-config/ shared tsconfig presets (private, never published)
 ├── .lefthook.yml          pre-commit and pre-push hooks
 ├── biome.json             lint and format for the whole repo
@@ -87,8 +98,8 @@ projects: [
 
 - `*.integration.test.ts` runs in the `integration` project, for slow tests that need external
   services.
-- Every other `*.test.ts` is a unit test, with or without the `.unit` qualifier: `greet.test.ts` and
-  `greet.unit.test.ts` are both unit tests.
+- Every other `*.test.ts` is a unit test, with or without the `.unit` qualifier: `service.test.ts`
+  and `service.unit.test.ts` are both unit tests.
 
 `pnpm test` runs both projects. `pnpm test:unit` and `pnpm test:integration` run one of them, and
 `--project <name>` works on any Vitest command. Tests live in `packages/<name>/test/**` (or next to
@@ -96,14 +107,10 @@ the source) and import the public API from source (`../src/index.js`), so no bui
 
 ## Adding a package
 
-1. Copy `packages/sample` to `packages/<name>` and rename it to `@softzweig/<name>`.
-2. Update `description` and `repository.directory` in its `package.json`.
-3. Remove `"private": true` so Changesets may version and publish it.
-4. Keep `publishConfig` pointed at GitHub Packages.
-5. `pnpm install`.
-
-The sample is marked private on purpose: a template must never publish `@softzweig/sample` by
-accident when the release job runs.
+1. Create `packages/<name>` with its own `package.json`, `tsconfig.json`, and `tsconfig.build.json`.
+2. Name it `@softzweig/spindle-<name>` and set `repository.directory` to `packages/<name>`.
+3. Keep `publishConfig` pointed at GitHub Packages.
+4. `pnpm install`.
 
 ## Versioning
 
