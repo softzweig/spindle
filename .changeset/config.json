@@ -1,0 +1,14 @@
+{
+  "$schema": "https://cdn.jsdelivr.net/npm/@changesets/config@4.0.1/schema.json",
+  "changelog": ["@changesets/changelog-github", {}],
+  "commit": false,
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "privatePackages": {
+    "version": false,
+    "tag": false
+  },
+  "format": false,
+  "ignore": []
+}
