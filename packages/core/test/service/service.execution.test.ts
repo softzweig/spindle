@@ -101,6 +101,74 @@ describe("ServiceExecution", () => {
     });
   });
 
+  describe("pipe", () => {
+    it("pipes the data into the next step", async () => {
+      const url = await succeeds(42)
+        .pipe((data) => `asset/${data}`)
+        .unwrap();
+
+      expect(url).toBe("asset/42");
+    });
+
+    it("does not run the pipeline until it is executed", async () => {
+      const step = vi.fn(() => succeeds(7));
+      const pipeline = succeeds(42).pipe(step);
+
+      expect(step).not.toHaveBeenCalled();
+
+      await expect(pipeline.unwrap()).resolves.toBe(7);
+      expect(step).toHaveBeenCalledWith(42);
+    });
+
+    it("chains executions and unwraps the last value", async () => {
+      const first = vi.fn(async () => ({ ok: true, data: 1 }) as const);
+      const second = vi.fn(async () => ({ ok: true, data: 2 }) as const);
+      const third = vi.fn(async () => ({ ok: true, data: 3 }) as const);
+
+      const value = await ServiceExecution.of<number>(first)
+        .pipe(() => ServiceExecution.of<number>(second))
+        .pipe(() => ServiceExecution.of<number>(third))
+        .unwrap();
+
+      expect(value).toBe(3);
+      expect(first).toHaveBeenCalledTimes(1);
+      expect(second).toHaveBeenCalledTimes(1);
+      expect(third).toHaveBeenCalledTimes(1);
+    });
+
+    it("skips every step when the execution already failed", async () => {
+      const step = vi.fn(() => succeeds(2));
+      const execution = ServiceExecution.fromError<number>(ServiceError.notFound("Missing"));
+
+      await expect(execution.pipe(step).unwrap()).rejects.toBeInstanceOf(ServiceError);
+      expect(step).not.toHaveBeenCalled();
+    });
+
+    it("carries a failed step to the end of the pipeline", async () => {
+      const failing = ServiceExecution.fromError<number>(ServiceError.forbidden("Nope"));
+      const last = vi.fn(() => succeeds(3));
+
+      const error = await succeeds(1)
+        .pipe(() => failing)
+        .pipe(last)
+        .unwrap()
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ServiceError);
+      expect(error).toMatchObject({ code: ServiceErrorCode.FORBIDDEN, message: "Nope" });
+      expect(last).not.toHaveBeenCalled();
+    });
+
+    it("runs the work once when the pipeline is executed twice", async () => {
+      const work = vi.fn(async () => ({ ok: true, data: 1 }) as const);
+      const pipeline = ServiceExecution.of<number>(work).pipe((data) => data + 1);
+
+      await Promise.all([pipeline.unwrap(), pipeline.unwrap()]);
+
+      expect(work).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("factories", () => {
     it("settles a result without running anything", async () => {
       const execution = succeeds(42);
