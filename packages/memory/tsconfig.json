@@ -1,0 +1,9 @@
+{
+  "extends": "@softzweig/typescript-config/base.json",
+  "include": ["src", "test"],
+  "exclude": ["dist", "node_modules"],
+  "compilerOptions": {
+    // The repositories generate the ids the core contract promises.
+    "types": ["node"]
+  }
+}

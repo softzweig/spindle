@@ -1,0 +1,11 @@
+{
+  "extends": "@softzweig/typescript-config/library.json",
+  "include": ["src"],
+  "exclude": ["dist", "node_modules", "src/**/*.test.ts"],
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // `node:crypto` supplies the ids an insert generates.
+    "types": ["node"]
+  }
+}

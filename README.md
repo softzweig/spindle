@@ -17,6 +17,7 @@ hooks, Changesets for versioning, and a CI workflow that verifies every change a
 | ------------------------------ | ---------------------------------------------------------------------- |
 | `@softzweig/spindle-core`      | Services, transactions, and the primitives the other packages build on |
 | `@softzweig/spindle-drizzle`   | Drizzle ORM repository bindings for Postgres and SQLite                |
+| `@softzweig/spindle-memory`    | Ephemeral in-memory repositories, for tests and early wiring           |
 | `@softzweig/typescript-config` | Shared tsconfig presets (private, never published)                     |
 
 ## Requirements
@@ -33,6 +34,7 @@ hooks, Changesets for versioning, and a CI workflow that verifies every change a
 ├── packages/
 │   ├── core/              @softzweig/spindle-core
 │   ├── drizzle/           @softzweig/spindle-drizzle
+│   ├── memory/            @softzweig/spindle-memory
 │   └── typescript-config/ shared tsconfig presets (private, never published)
 ├── .lefthook.yml          pre-commit and pre-push hooks
 ├── biome.json             lint and format for the whole repo
