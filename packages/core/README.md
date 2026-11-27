@@ -61,7 +61,7 @@ such as a timestamp paired with an id.
 A repository throws what a caller can branch on. A malformed call is a programmer mistake and
 stays a JavaScript error: a `RangeError` for a page limit that is not a positive integer, a
 `TypeError` for a filter or cursor a backend cannot express. A well formed call that cannot
-succeed throws `RepositoryError`, which carries a `ServiceErrorCode`:
+succeed throws `RepositoryError`, which carries a `SpindleErrorCode`:
 
 ```ts
 import { RepositoryError } from "@softzweig/spindle-core/repository";

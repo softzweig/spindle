@@ -1,5 +1,5 @@
 import { RepositoryError } from "../repository/repository.error.js";
-import { ServiceErrorCode, type ServiceFailure } from "../result.js";
+import { SpindleErrorCode, type SpindleFailure } from "../result.js";
 import {
   BaseTransactional,
   FOLLOWS_CONTEXT,
@@ -18,7 +18,7 @@ export type ServiceContextFunction = (...args: never[]) => unknown;
 
 type ServiceContextBase = TransactionalContext & {
   /** Converts an unknown error into a structured service failure. @default toServiceFailure */
-  readonly toServiceFailure?: (error: unknown) => ServiceFailure;
+  readonly toServiceFailure?: (error: unknown) => SpindleFailure;
 };
 
 /**
@@ -134,7 +134,7 @@ export class Service<
    *
    * The work stays deferred until the returned {@link ServiceExecution} is
    * executed, through `run`, `unwrap` or `discard`, and every failure it
-   * produces is folded into a {@link ServiceResult} rather than thrown.
+   * produces is folded into a {@link SpindleResult} rather than thrown.
    *
    * @human
    */
@@ -219,7 +219,7 @@ function resolveLazies<TContext extends ServiceContext>(context: TContext): TCon
  * @example
  * ```ts
  * // Example use: you may want to extend the default error handling
- * function toAppFailure(error: unknown): ServiceFailure {
+ * function toAppFailure(error: unknown): SpindleFailure {
  *   if (error instanceof StorageError) { // <- example
  *     return mapStorageErrorToFailure(error);
  *   }
@@ -237,12 +237,12 @@ export function toServiceFailure(error: unknown) {
       code: error.code,
       message: error.message,
       details: error.details,
-    } satisfies ServiceFailure;
+    } satisfies SpindleFailure;
   }
 
   return {
     ok: false,
-    code: ServiceErrorCode.UNKNOWN,
+    code: SpindleErrorCode.UNKNOWN,
     message: "Unexpected failure",
-  } satisfies ServiceFailure;
+  } satisfies SpindleFailure;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ServiceResult } from "../../src/result.js";
-import { ServiceErrorCode } from "../../src/result.js";
+import type { SpindleResult } from "../../src/result.js";
+import { SpindleErrorCode } from "../../src/result.js";
 import { ServiceError } from "../../src/service/service.error.js";
 import { ServiceExecution } from "../../src/service/service.execution.js";
 
@@ -32,9 +32,9 @@ describe("ServiceExecution", () => {
     });
 
     it("returns a failure result without throwing", async () => {
-      const failure: ServiceResult<number> = {
+      const failure: SpindleResult<number> = {
         ok: false,
-        code: ServiceErrorCode.NOT_FOUND,
+        code: SpindleErrorCode.NOT_FOUND,
         message: "Missing",
       };
 
@@ -54,7 +54,7 @@ describe("ServiceExecution", () => {
 
       expect(error).toBeInstanceOf(ServiceError);
       expect(error).toMatchObject({
-        code: ServiceErrorCode.FORBIDDEN,
+        code: SpindleErrorCode.FORBIDDEN,
         message: "Not allowed",
         details: { action: "delete" },
       });
@@ -67,7 +67,7 @@ describe("ServiceExecution", () => {
 
       expect(error).toBeInstanceOf(ServiceError);
       expect(error).toMatchObject({
-        code: ServiceErrorCode.UNAVAILABLE,
+        code: SpindleErrorCode.UNAVAILABLE,
         message: "Down",
         details: undefined,
       });
@@ -155,7 +155,7 @@ describe("ServiceExecution", () => {
         .catch((caught: unknown) => caught);
 
       expect(error).toBeInstanceOf(ServiceError);
-      expect(error).toMatchObject({ code: ServiceErrorCode.FORBIDDEN, message: "Nope" });
+      expect(error).toMatchObject({ code: SpindleErrorCode.FORBIDDEN, message: "Nope" });
       expect(last).not.toHaveBeenCalled();
     });
 
@@ -203,7 +203,7 @@ describe("ServiceExecution", () => {
 
       await expect(together.run()).resolves.toMatchObject({
         ok: false,
-        code: ServiceErrorCode.NOT_FOUND,
+        code: SpindleErrorCode.NOT_FOUND,
         message: "Missing",
       });
     });
@@ -220,7 +220,7 @@ describe("ServiceExecution", () => {
 
   describe("allSettled", () => {
     it("keeps every outcome, in the order given", async () => {
-      const settled: ServiceExecution<[ServiceResult<number>, ServiceResult<number>]> =
+      const settled: ServiceExecution<[SpindleResult<number>, SpindleResult<number>]> =
         ServiceExecution.allSettled([
           succeeds(1),
           ServiceExecution.fromError<number>(ServiceError.forbidden("Nope")),
@@ -230,7 +230,7 @@ describe("ServiceExecution", () => {
         { ok: true, data: 1 },
         {
           ok: false,
-          code: ServiceErrorCode.FORBIDDEN,
+          code: SpindleErrorCode.FORBIDDEN,
           message: "Nope",
           details: undefined,
         },
@@ -282,7 +282,7 @@ describe("ServiceExecution", () => {
 
       expect(combined).toEqual({
         ok: false,
-        code: ServiceErrorCode.NOT_FOUND,
+        code: SpindleErrorCode.NOT_FOUND,
         message: "Missing",
         details: undefined,
       });
@@ -308,7 +308,7 @@ describe("ServiceExecution", () => {
         .catch((caught: unknown) => caught);
 
       expect(error).toBeInstanceOf(ServiceError);
-      expect(error).toMatchObject({ code: ServiceErrorCode.UNAVAILABLE, message: "Down" });
+      expect(error).toMatchObject({ code: SpindleErrorCode.UNAVAILABLE, message: "Down" });
       expect(step).not.toHaveBeenCalled();
     });
 
@@ -335,7 +335,7 @@ describe("ServiceExecution", () => {
 
       await expect(execution.run()).resolves.toEqual({
         ok: false,
-        code: ServiceErrorCode.CONFLICT,
+        code: SpindleErrorCode.CONFLICT,
         message: "Taken",
         details: undefined,
       });

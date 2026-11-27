@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ServiceErrorCode } from "../src/result.js";
+import { SpindleErrorCode } from "../src/result.js";
 import { ServiceError } from "../src/service/service.error.js";
 import {
   BaseTransactional,
@@ -391,7 +391,7 @@ describe("transaction assertions", () => {
 
     expect(error).toBeInstanceOf(ServiceError);
     expect(error).toMatchObject({
-      code: ServiceErrorCode.PRECONDITION_FAILED,
+      code: SpindleErrorCode.PRECONDITION_FAILED,
       message: "This service is not bound to a transaction",
     });
   });
@@ -409,7 +409,7 @@ describe("transaction assertions", () => {
 
     expect(error).toBeInstanceOf(ServiceError);
     expect(error).toMatchObject({
-      code: ServiceErrorCode.PRECONDITION_FAILED,
+      code: SpindleErrorCode.PRECONDITION_FAILED,
       message: "This service is bound to a transaction",
     });
   });

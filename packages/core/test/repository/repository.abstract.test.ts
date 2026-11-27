@@ -9,6 +9,7 @@ import type {
   EntityPatch,
   RepositoryContext,
 } from "../../src/repository/repository.js";
+import { SpindleErrorCode } from "../../src/result.js";
 
 type User = Entity & { name: string; age: number };
 type UserId = EntityId<User>;
@@ -167,7 +168,7 @@ describe("AbstractRepository mutations", () => {
     expect(error).toBeInstanceOf(RepositoryError);
     expect(error).toMatchObject({
       message: "Entity with id 2 not found",
-      code: "not_found",
+      code: SpindleErrorCode.NOT_FOUND,
       details: { id: 2 },
     });
   });

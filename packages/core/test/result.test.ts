@@ -1,21 +1,21 @@
 import { describe, expect, it, test } from "vitest";
 import z from "zod";
 import {
-  ServiceErrorCode,
-  ServiceFailureSchema,
-  serviceResultSchema,
-  serviceSuccessSchema,
+  SpindleErrorCode,
+  SpindleFailureSchema,
+  SpindleResultSchema,
+  SpindleSuccessSchema,
 } from "../src/result.js";
 
 const failure = {
   ok: false,
-  code: ServiceErrorCode.NOT_FOUND,
+  code: SpindleErrorCode.NOT_FOUND,
   message: "Missing",
 } as const;
 
-describe("ServiceErrorCode", () => {
+describe("SpindleErrorCode", () => {
   it("exposes a frozen, stable vocabulary", () => {
-    expect(ServiceErrorCode).toEqual({
+    expect(SpindleErrorCode).toEqual({
       NOT_FOUND: "not_found",
       INVALID_INPUT: "invalid_input",
       FORBIDDEN: "forbidden",
@@ -24,33 +24,33 @@ describe("ServiceErrorCode", () => {
       UNAVAILABLE: "unavailable",
       UNKNOWN: "unknown",
     });
-    expect(Object.isFrozen(ServiceErrorCode)).toBe(true);
+    expect(Object.isFrozen(SpindleErrorCode)).toBe(true);
   });
 });
 
-describe("ServiceFailureSchema", () => {
+describe("SpindleFailureSchema", () => {
   it("accepts a minimal failure", () => {
-    expect(ServiceFailureSchema.parse(failure)).toEqual(failure);
+    expect(SpindleFailureSchema.parse(failure)).toEqual(failure);
   });
 
   it("accepts free-form details", () => {
     const withDetails = { ...failure, details: { field: "id", ids: [1, 2] } };
 
-    expect(ServiceFailureSchema.parse(withDetails)).toEqual(withDetails);
+    expect(SpindleFailureSchema.parse(withDetails)).toEqual(withDetails);
   });
 
   test.for([
     ["a success marker", { ...failure, ok: true }],
     ["an unknown code", { ...failure, code: "teapot" }],
-    ["a missing message", { ok: false, code: ServiceErrorCode.UNKNOWN }],
+    ["a missing message", { ok: false, code: SpindleErrorCode.UNKNOWN }],
     ["non-record details", { ...failure, details: "nope" }],
   ])("rejects %s", ([, value]) => {
-    expect(ServiceFailureSchema.safeParse(value).success).toBe(false);
+    expect(SpindleFailureSchema.safeParse(value).success).toBe(false);
   });
 });
 
-describe("serviceSuccessSchema", () => {
-  const schema = serviceSuccessSchema(z.number());
+describe("SpindleSuccessSchema", () => {
+  const schema = SpindleSuccessSchema(z.number());
 
   it("accepts a matching payload", () => {
     expect(schema.parse({ ok: true, data: 3 })).toEqual({ ok: true, data: 3 });
@@ -61,8 +61,8 @@ describe("serviceSuccessSchema", () => {
   });
 });
 
-describe("serviceResultSchema", () => {
-  const schema = serviceResultSchema(z.number());
+describe("SpindleResultSchema", () => {
+  const schema = SpindleResultSchema(z.number());
 
   it("accepts a success result", () => {
     expect(schema.parse({ ok: true, data: 3 })).toEqual({ ok: true, data: 3 });
@@ -75,7 +75,7 @@ describe("serviceResultSchema", () => {
   test.for([
     ["a mismatched success payload", { ok: true, data: "3" }],
     ["an unknown failure code", { ...failure, code: "teapot" }],
-    ["a failure without a message", { ok: false, code: ServiceErrorCode.UNKNOWN }],
+    ["a failure without a message", { ok: false, code: SpindleErrorCode.UNKNOWN }],
   ])("rejects %s", ([, value]) => {
     expect(schema.safeParse(value).success).toBe(false);
   });

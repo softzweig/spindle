@@ -1,4 +1,4 @@
-import { ServiceErrorCode } from "../result.js";
+import { SpindleErrorCode } from "../result.js";
 
 /**
  * A repository failure a caller is expected to branch on.
@@ -14,7 +14,7 @@ import { ServiceErrorCode } from "../result.js";
  *   await assets.patch(id, { note: "reviewed" });
  * } catch (error) {
  *   if (error instanceof RepositoryError) {
- *     // error.code is a ServiceErrorCode, so it maps like a service failure
+ *     // error.code is a SpindleErrorCode, so it maps like a service failure
  *   }
  * }
  * ```
@@ -23,7 +23,7 @@ import { ServiceErrorCode } from "../result.js";
  */
 export class RepositoryError extends Error {
   constructor(
-    readonly code: ServiceErrorCode,
+    readonly code: SpindleErrorCode,
     message: string,
     readonly details?: Record<string, unknown>,
   ) {
@@ -33,6 +33,6 @@ export class RepositoryError extends Error {
 
   /** No row matches the id an update was addressed to. */
   static notFound(message: string, details?: Record<string, unknown>) {
-    return new RepositoryError(ServiceErrorCode.NOT_FOUND, message, details);
+    return new RepositoryError(SpindleErrorCode.NOT_FOUND, message, details);
   }
 }

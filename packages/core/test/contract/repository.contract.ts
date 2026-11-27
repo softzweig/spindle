@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { EntityFilter, Repository, RepositoryContext } from "../../src/repository/index.js";
-import { ServiceErrorCode } from "../../src/result.js";
+import { SpindleErrorCode } from "../../src/result.js";
 
 /**
  * The fixture every adapter is held to: a set of rows with UUIDv4 ids and a timestamp that
@@ -393,7 +393,7 @@ export function describeRepositoryContract<TContext extends RepositoryContext>(
         // against the built package, so asserting the class object would compare two copies.
         expect(error).toMatchObject({
           name: "RepositoryError",
-          code: ServiceErrorCode.NOT_FOUND,
+          code: SpindleErrorCode.NOT_FOUND,
           details: { id: "missing" },
         });
       });

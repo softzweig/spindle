@@ -1,7 +1,7 @@
 import { describe, expect, it, test, vi } from "vitest";
 import { RepositoryError } from "../../src/repository/repository.error.js";
-import type { ServiceFailure } from "../../src/result.js";
-import { ServiceErrorCode } from "../../src/result.js";
+import type { SpindleFailure } from "../../src/result.js";
+import { SpindleErrorCode } from "../../src/result.js";
 import { ServiceError } from "../../src/service/service.error.js";
 import { ServiceExecution } from "../../src/service/service.execution.js";
 import { Service, type ServiceContext, toServiceFailure } from "../../src/service/service.js";
@@ -56,7 +56,7 @@ describe("toServiceFailure", () => {
 
     expect(toServiceFailure(ServiceError.notFound("Missing", details))).toEqual({
       ok: false,
-      code: ServiceErrorCode.NOT_FOUND,
+      code: SpindleErrorCode.NOT_FOUND,
       message: "Missing",
       details,
     });
@@ -65,7 +65,7 @@ describe("toServiceFailure", () => {
   it("preserves a RepositoryError the same way", () => {
     expect(toServiceFailure(RepositoryError.notFound("Missing", { id: 1 }))).toEqual({
       ok: false,
-      code: ServiceErrorCode.NOT_FOUND,
+      code: SpindleErrorCode.NOT_FOUND,
       message: "Missing",
       details: { id: 1 },
     });
@@ -78,7 +78,7 @@ describe("toServiceFailure", () => {
   ] as const)("maps %s to an unknown failure", ([, error]) => {
     expect(toServiceFailure(error)).toEqual({
       ok: false,
-      code: ServiceErrorCode.UNKNOWN,
+      code: SpindleErrorCode.UNKNOWN,
       message: "Unexpected failure",
     });
   });
@@ -127,14 +127,14 @@ describe("Service", () => {
 
       await expect(execution.run()).resolves.toEqual({
         ok: false,
-        code: ServiceErrorCode.FORBIDDEN,
+        code: SpindleErrorCode.FORBIDDEN,
         message: "Nope",
         details: { action: "delete" },
       });
 
       const caught = await execution.unwrap().catch((error: unknown) => error);
       expect(caught).toBeInstanceOf(ServiceError);
-      expect(caught).toMatchObject({ code: ServiceErrorCode.FORBIDDEN, message: "Nope" });
+      expect(caught).toMatchObject({ code: SpindleErrorCode.FORBIDDEN, message: "Nope" });
     });
 
     it("maps unexpected errors to an unknown failure", async () => {
@@ -145,7 +145,7 @@ describe("Service", () => {
 
       await expect(execution.run()).resolves.toEqual({
         ok: false,
-        code: ServiceErrorCode.UNKNOWN,
+        code: SpindleErrorCode.UNKNOWN,
         message: "Unexpected failure",
       });
     });
@@ -158,16 +158,16 @@ describe("Service", () => {
 
       await expect(execution.run()).resolves.toMatchObject({
         ok: false,
-        code: ServiceErrorCode.INVALID_INPUT,
+        code: SpindleErrorCode.INVALID_INPUT,
         message: "Bad input",
       });
     });
 
     it("uses the context converter when one is provided", async () => {
       const convert = vi.fn(
-        (_error: unknown): ServiceFailure => ({
+        (_error: unknown): SpindleFailure => ({
           ok: false,
-          code: ServiceErrorCode.UNKNOWN,
+          code: SpindleErrorCode.UNKNOWN,
           message: "Custom failure",
         }),
       );
@@ -180,7 +180,7 @@ describe("Service", () => {
 
       await expect(execution.run()).resolves.toEqual({
         ok: false,
-        code: ServiceErrorCode.UNKNOWN,
+        code: SpindleErrorCode.UNKNOWN,
         message: "Custom failure",
       });
       expect(convert).toHaveBeenCalledWith(failure);
@@ -188,9 +188,9 @@ describe("Service", () => {
 
     it("does not call the context converter on success", async () => {
       const convert = vi.fn(
-        (_error: unknown): ServiceFailure => ({
+        (_error: unknown): SpindleFailure => ({
           ok: false,
-          code: ServiceErrorCode.UNKNOWN,
+          code: SpindleErrorCode.UNKNOWN,
           message: "Custom failure",
         }),
       );
@@ -230,7 +230,7 @@ describe("Service", () => {
 
       await expect(execution.run()).resolves.toMatchObject({
         ok: false,
-        code: ServiceErrorCode.PRECONDITION_FAILED,
+        code: SpindleErrorCode.PRECONDITION_FAILED,
         message: "This service is not bound to a transaction",
       });
     });
@@ -243,7 +243,7 @@ describe("Service", () => {
 
       await expect(execution.run()).resolves.toMatchObject({
         ok: false,
-        code: ServiceErrorCode.CONFLICT,
+        code: SpindleErrorCode.CONFLICT,
         message: "Clash",
       });
     });
@@ -273,7 +273,7 @@ describe("Service", () => {
 
       await expect(execution.run()).resolves.toMatchObject({
         ok: false,
-        code: ServiceErrorCode.PRECONDITION_FAILED,
+        code: SpindleErrorCode.PRECONDITION_FAILED,
         message: "This service is bound to a transaction",
       });
     });
@@ -286,7 +286,7 @@ describe("Service", () => {
 
       await expect(execution.run()).resolves.toMatchObject({
         ok: false,
-        code: ServiceErrorCode.NOT_FOUND,
+        code: SpindleErrorCode.NOT_FOUND,
         message: "Missing",
       });
     });

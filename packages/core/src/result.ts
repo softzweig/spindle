@@ -1,23 +1,24 @@
 import z from "zod";
 
-/** A successful service call, carrying the result payload. */
-export type ServiceSuccess<T> = Readonly<{ ok: true; data: T }>;
+/** A successful call, carrying the result payload. */
+export type SpindleSuccess<T> = Readonly<{ ok: true; data: T }>;
 
-export type ServiceFailure = z.infer<typeof ServiceFailureSchema>;
+export type SpindleFailure = z.infer<typeof SpindleFailureSchema>;
 
-export type ServiceResult<T> = ServiceSuccess<T> | ServiceFailure;
+export type SpindleResult<T> = SpindleSuccess<T> | SpindleFailure;
 
-export type ServiceErrorCode = (typeof ServiceErrorCode)[keyof typeof ServiceErrorCode];
+export type SpindleErrorCode = (typeof SpindleErrorCode)[keyof typeof SpindleErrorCode];
 
 /**
- * Failure categories a service reports to its callers.
+ * Failure categories Spindle reports to callers.
  *
- * Services translate domain and adapter failures into these codes, so callers
- * branch on a stable vocabulary instead of on backend-specific errors.
+ * Repositories and services share one vocabulary, so a caller branches on `code` instead of
+ * on a backend-specific error: a repository throws `RepositoryError`, a service throws
+ * `ServiceError`, and `toServiceFailure` folds either into a `SpindleFailure`.
  *
  * @human
  */
-export const ServiceErrorCode = Object.freeze({
+export const SpindleErrorCode = Object.freeze({
   /** The entity does not exist, or is not visible to the caller. */
   NOT_FOUND: "not_found",
   /** The input is malformed or breaks a domain rule. */
@@ -30,29 +31,29 @@ export const ServiceErrorCode = Object.freeze({
   PRECONDITION_FAILED: "precondition_failed",
   /** A dependency is unavailable; the same request may succeed later. */
   UNAVAILABLE: "unavailable",
-  /** A failure the service could not classify. */
+  /** A failure the caller could not classify. */
   UNKNOWN: "unknown",
 });
 
 /**
- * A failed service call.
+ * A failed call.
  *
  * `message` is for humans; `details` carries machine-readable context such as
  * the offending field, and stays free-form on purpose.
  *
  * @human
  */
-export const ServiceFailureSchema = z.object({
+export const SpindleFailureSchema = z.object({
   ok: z.literal(false),
-  code: z.enum(ServiceErrorCode),
+  code: z.enum(SpindleErrorCode),
   message: z.string(),
   details: z.record(z.string(), z.unknown()).optional(),
 });
 
-/** Success half of {@link ServiceResult}, for a given payload schema. */
-export const serviceSuccessSchema = <TPayload extends z.ZodType>(payload: TPayload) =>
+/** Success half of {@link SpindleResult}, for a given payload schema. */
+export const SpindleSuccessSchema = <TPayload extends z.ZodType>(payload: TPayload) =>
   z.object({ ok: z.literal(true), data: payload });
 
-/** Full {@link ServiceResult} schema, for a given payload schema. */
-export const serviceResultSchema = <TPayload extends z.ZodType>(payload: TPayload) =>
-  z.discriminatedUnion("ok", [serviceSuccessSchema(payload), ServiceFailureSchema]);
+/** Full {@link SpindleResult} schema, for a given payload schema. */
+export const SpindleResultSchema = <TPayload extends z.ZodType>(payload: TPayload) =>
+  z.discriminatedUnion("ok", [SpindleSuccessSchema(payload), SpindleFailureSchema]);

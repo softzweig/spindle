@@ -1,4 +1,4 @@
-import type { ServiceResult } from "../result.js";
+import type { SpindleResult } from "../result.js";
 import { ServiceError } from "./service.error.js";
 
 /** The data one execution resolves to. */
@@ -11,7 +11,7 @@ export type ServiceExecutionValues<T extends readonly ServiceExecution<unknown>[
 
 /** One outcome per execution, keeping the tuple's shape. */
 export type ServiceExecutionSettledValues<T extends readonly ServiceExecution<unknown>[]> = {
-  -readonly [K in keyof T]: ServiceResult<ServiceExecutionValue<T[K]>>;
+  -readonly [K in keyof T]: SpindleResult<ServiceExecutionValue<T[K]>>;
 };
 
 /**
@@ -26,17 +26,17 @@ export type ServiceExecutionSettledValues<T extends readonly ServiceExecution<un
  * @human
  */
 export class ServiceExecution<T> {
-  private promise: Promise<ServiceResult<T>> | null = null;
+  private promise: Promise<SpindleResult<T>> | null = null;
 
-  protected constructor(private readonly lazyExecutor: () => Promise<ServiceResult<T>>) {}
+  protected constructor(private readonly lazyExecutor: () => Promise<SpindleResult<T>>) {}
 
   /** An execution that runs `lazyExecutor` as soon as it is executed. */
-  static of<T>(lazyExecutor: () => Promise<ServiceResult<T>>) {
+  static of<T>(lazyExecutor: () => Promise<SpindleResult<T>>) {
     return new ServiceExecution(lazyExecutor);
   }
 
   /** An execution already settled with a result, without running anything. */
-  static fromResult<T>(result: ServiceResult<T>) {
+  static fromResult<T>(result: SpindleResult<T>) {
     return new ServiceExecution(() => Promise.resolve(result));
   }
 
@@ -89,7 +89,7 @@ export class ServiceExecution<T> {
    * Prepares a set of executions to run together, keeping every outcome.
    *
    * Unlike {@link ServiceExecution.all} this never fails: the data is one
-   * {@link ServiceResult} per execution, in the order they were given, so the caller
+   * {@link SpindleResult} per execution, in the order they were given, so the caller
    * decides what to do with the failures it finds. Nothing is ran until a terminal
    * executor like `unwrap` or `result` is called.
    *
@@ -122,7 +122,7 @@ export class ServiceExecution<T> {
    * @see {@link discard}
    * @human
    */
-  run(): Promise<ServiceResult<T>> {
+  run(): Promise<SpindleResult<T>> {
     return this.executeOnce();
   }
 
@@ -212,6 +212,6 @@ export class ServiceExecution<T> {
 /** Runs every execution and collects the outcomes, in the order they were given. */
 function runTogether(
   executions: readonly ServiceExecution<unknown>[],
-): Promise<ServiceResult<unknown>[]> {
+): Promise<SpindleResult<unknown>[]> {
   return Promise.all(executions.map((execution) => execution.run()));
 }

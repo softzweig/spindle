@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "vitest";
-import { ServiceErrorCode } from "../../src/result.js";
+import { SpindleErrorCode } from "../../src/result.js";
 import { ServiceError } from "../../src/service/service.error.js";
 
 function captureError(fn: () => void): unknown {
@@ -14,23 +14,23 @@ function captureError(fn: () => void): unknown {
 describe("ServiceError", () => {
   it("carries code, message, details, and a stable name", () => {
     const details = { field: "id" };
-    const error = new ServiceError(ServiceErrorCode.CONFLICT, "Conflict", details);
+    const error = new ServiceError(SpindleErrorCode.CONFLICT, "Conflict", details);
 
     expect(error).toBeInstanceOf(Error);
     expect(error.name).toBe("ServiceError");
-    expect(error.code).toBe(ServiceErrorCode.CONFLICT);
+    expect(error.code).toBe(SpindleErrorCode.CONFLICT);
     expect(error.message).toBe("Conflict");
     expect(error.details).toBe(details);
   });
 
   test.for([
-    ["notFound", ServiceErrorCode.NOT_FOUND],
-    ["invalidInput", ServiceErrorCode.INVALID_INPUT],
-    ["forbidden", ServiceErrorCode.FORBIDDEN],
-    ["conflict", ServiceErrorCode.CONFLICT],
-    ["preconditionFailed", ServiceErrorCode.PRECONDITION_FAILED],
-    ["unavailable", ServiceErrorCode.UNAVAILABLE],
-    ["unknown", ServiceErrorCode.UNKNOWN],
+    ["notFound", SpindleErrorCode.NOT_FOUND],
+    ["invalidInput", SpindleErrorCode.INVALID_INPUT],
+    ["forbidden", SpindleErrorCode.FORBIDDEN],
+    ["conflict", SpindleErrorCode.CONFLICT],
+    ["preconditionFailed", SpindleErrorCode.PRECONDITION_FAILED],
+    ["unavailable", SpindleErrorCode.UNAVAILABLE],
+    ["unknown", SpindleErrorCode.UNKNOWN],
   ] as const)("%s builds a %s error", ([factory, code]) => {
     const details = { field: "id" };
     const error = ServiceError[factory]("Message", details);
@@ -64,7 +64,7 @@ describe("ServiceError.assert", () => {
 
     expect(error).toBeInstanceOf(ServiceError);
     expect(error).toMatchObject({
-      code: ServiceErrorCode.PRECONDITION_FAILED,
+      code: SpindleErrorCode.PRECONDITION_FAILED,
       message: "Message",
     });
   });
@@ -72,12 +72,12 @@ describe("ServiceError.assert", () => {
   it("uses an explicit code and details", () => {
     const details = { field: "id" };
     const error = captureError(() =>
-      ServiceError.assert(false, "Message", details, ServiceErrorCode.CONFLICT),
+      ServiceError.assert(false, "Message", details, SpindleErrorCode.CONFLICT),
     );
 
     expect(error).toBeInstanceOf(ServiceError);
     expect(error).toMatchObject({
-      code: ServiceErrorCode.CONFLICT,
+      code: SpindleErrorCode.CONFLICT,
       message: "Message",
       details,
     });
@@ -86,11 +86,11 @@ describe("ServiceError.assert", () => {
 
 describe("specific assertions", () => {
   test.for([
-    ["assertFound", ServiceErrorCode.NOT_FOUND],
-    ["assertConflict", ServiceErrorCode.CONFLICT],
-    ["assertAllowed", ServiceErrorCode.FORBIDDEN],
-    ["assertValidInput", ServiceErrorCode.INVALID_INPUT],
-    ["assertAvailable", ServiceErrorCode.UNAVAILABLE],
+    ["assertFound", SpindleErrorCode.NOT_FOUND],
+    ["assertConflict", SpindleErrorCode.CONFLICT],
+    ["assertAllowed", SpindleErrorCode.FORBIDDEN],
+    ["assertValidInput", SpindleErrorCode.INVALID_INPUT],
+    ["assertAvailable", SpindleErrorCode.UNAVAILABLE],
   ] as const)("%s rejects with %s", ([guard, code]) => {
     const error = captureError(() => ServiceError[guard](false, "Message"));
 
@@ -116,7 +116,7 @@ describe("ServiceError.assertPermitted", () => {
 
     expect(error).toBeInstanceOf(ServiceError);
     expect(error).toMatchObject({
-      code: ServiceErrorCode.FORBIDDEN,
+      code: SpindleErrorCode.FORBIDDEN,
       message,
       details,
     });

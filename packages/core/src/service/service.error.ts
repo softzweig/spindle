@@ -1,4 +1,4 @@
-import { ServiceErrorCode } from "../result.js";
+import { SpindleErrorCode } from "../result.js";
 
 /** What an authorization hook may answer: only `true` permits, a string refuses with its reason. */
 export type AuthorizationVerdict = boolean | undefined | null | string;
@@ -16,7 +16,7 @@ export type AuthorizationVerdict = boolean | undefined | null | string;
  */
 export class ServiceError extends Error {
   constructor(
-    readonly code: ServiceErrorCode,
+    readonly code: SpindleErrorCode,
     message: string,
     readonly details?: Record<string, unknown>,
   ) {
@@ -24,66 +24,66 @@ export class ServiceError extends Error {
     this.name = "ServiceError";
   }
 
-  static of(code: ServiceErrorCode, message: string, details?: Record<string, unknown>) {
+  static of(code: SpindleErrorCode, message: string, details?: Record<string, unknown>) {
     return new ServiceError(code, message, details);
   }
 
   static notFound(message: string, details?: Record<string, unknown>) {
-    return ServiceError.of(ServiceErrorCode.NOT_FOUND, message, details);
+    return ServiceError.of(SpindleErrorCode.NOT_FOUND, message, details);
   }
 
   static invalidInput(message: string, details?: Record<string, unknown>) {
-    return ServiceError.of(ServiceErrorCode.INVALID_INPUT, message, details);
+    return ServiceError.of(SpindleErrorCode.INVALID_INPUT, message, details);
   }
 
   static forbidden(message: string, details?: Record<string, unknown>) {
-    return ServiceError.of(ServiceErrorCode.FORBIDDEN, message, details);
+    return ServiceError.of(SpindleErrorCode.FORBIDDEN, message, details);
   }
 
   static conflict(message: string, details?: Record<string, unknown>) {
-    return ServiceError.of(ServiceErrorCode.CONFLICT, message, details);
+    return ServiceError.of(SpindleErrorCode.CONFLICT, message, details);
   }
 
   static preconditionFailed(message: string, details?: Record<string, unknown>) {
-    return ServiceError.of(ServiceErrorCode.PRECONDITION_FAILED, message, details);
+    return ServiceError.of(SpindleErrorCode.PRECONDITION_FAILED, message, details);
   }
 
   static unavailable(message: string, details?: Record<string, unknown>) {
-    return ServiceError.of(ServiceErrorCode.UNAVAILABLE, message, details);
+    return ServiceError.of(SpindleErrorCode.UNAVAILABLE, message, details);
   }
 
   static unknown(message: string, details?: Record<string, unknown>) {
-    return ServiceError.of(ServiceErrorCode.UNKNOWN, message, details);
+    return ServiceError.of(SpindleErrorCode.UNKNOWN, message, details);
   }
 
   static assert(
     condition: unknown,
     message: string,
     details?: Record<string, unknown>,
-    code: ServiceErrorCode = ServiceErrorCode.PRECONDITION_FAILED,
+    code: SpindleErrorCode = SpindleErrorCode.PRECONDITION_FAILED,
   ): asserts condition {
     if (condition) return;
     throw ServiceError.of(code, message, details);
   }
 
   static assertFound(condition: unknown, message: string, details?: Record<string, unknown>) {
-    ServiceError.assert(condition, message, details, ServiceErrorCode.NOT_FOUND);
+    ServiceError.assert(condition, message, details, SpindleErrorCode.NOT_FOUND);
   }
 
   static assertConflict(condition: unknown, message: string, details?: Record<string, unknown>) {
-    ServiceError.assert(condition, message, details, ServiceErrorCode.CONFLICT);
+    ServiceError.assert(condition, message, details, SpindleErrorCode.CONFLICT);
   }
 
   static assertAllowed(condition: unknown, message: string, details?: Record<string, unknown>) {
-    ServiceError.assert(condition, message, details, ServiceErrorCode.FORBIDDEN);
+    ServiceError.assert(condition, message, details, SpindleErrorCode.FORBIDDEN);
   }
 
   static assertValidInput(condition: unknown, message: string, details?: Record<string, unknown>) {
-    ServiceError.assert(condition, message, details, ServiceErrorCode.INVALID_INPUT);
+    ServiceError.assert(condition, message, details, SpindleErrorCode.INVALID_INPUT);
   }
 
   static assertAvailable(condition: unknown, message: string, details?: Record<string, unknown>) {
-    ServiceError.assert(condition, message, details, ServiceErrorCode.UNAVAILABLE);
+    ServiceError.assert(condition, message, details, SpindleErrorCode.UNAVAILABLE);
   }
 
   /**
