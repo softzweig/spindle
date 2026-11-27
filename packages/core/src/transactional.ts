@@ -114,10 +114,26 @@ export class BaseTransactional<TCtx extends TransactionalContext> implements Tra
    * A copy of this service, of the same subclass, carrying another context.
    *
    * The services held by that context are bound to it as well; every other value
-   * is carried over as it is.
+   * is carried over as it is. The copy itself comes from {@link clone}, so a
+   * subclass holding `#private` state overrides that and not this.
    */
   withContext(context: Readonly<TCtx>): this {
-    return bindInstance(this, bindMembers(context));
+    return this.clone(bindMembers(context));
+  }
+
+  /**
+   * Produces a copy of this instance carrying an already bound context.
+   *
+   * The default shares the prototype and every own field of this instance, and adds
+   * the context on top. Such a copy cannot read `#private` fields: private state lives
+   * on the original instance, while the copy only sees the prototype it is made from.
+   * A subclass that keeps private state must therefore override this method and build
+   * the copy itself, usually by calling its own constructor.
+   *
+   * @see {@link withContext}
+   */
+  protected clone(context: Readonly<TCtx>): this {
+    return bindInstance(this, context);
   }
 
   /**

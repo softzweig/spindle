@@ -38,6 +38,37 @@ class TruthyMarkerService extends TestService {
   readonly [FOLLOWS_CONTEXT] = 1;
 }
 
+/** A subclass keeping private state, so it has to build its own copies. */
+class PrivateStateService extends BaseTransactional<TestContext> {
+  #issued: number;
+
+  constructor(
+    context: TestContext,
+    private readonly runner: TransactionRunner,
+    issued = 0,
+  ) {
+    super(context, runner);
+    this.#issued = issued;
+  }
+
+  get issued(): number {
+    return this.#issued;
+  }
+
+  protected override clone(context: Readonly<TestContext>): this {
+    return new PrivateStateService(context, this.runner, this.#issued) as this;
+  }
+}
+
+/** The same private state without the override: the default copy cannot see it. */
+class UnclonableService extends BaseTransactional<TestContext> {
+  #issued = 0;
+
+  get issued(): number {
+    return this.#issued;
+  }
+}
+
 function createContext(overrides: Partial<TestContext> = {}): TestContext {
   return { isInTransaction: false, id: "root", ...overrides };
 }
@@ -174,6 +205,26 @@ describe("withContext", () => {
     expect(boundOnce.getContext()).toEqual(first);
     expect(boundTwice.getContext()).toEqual(second);
     expect(boundTwice).not.toBe(boundOnce);
+  });
+
+  it("keeps private state when the subclass overrides clone", () => {
+    const runner = createRunner();
+    const service = new PrivateStateService(createContext(), runner.createTransaction, 3);
+    const next = createContext({ isInTransaction: true, id: "next" });
+
+    const bound = service.withContext(next);
+
+    expect(bound).toBeInstanceOf(PrivateStateService);
+    expect(bound.issued).toBe(3);
+    expect(bound.getContext()).toEqual(next);
+  });
+
+  it("cannot read private state when the subclass does not override clone", () => {
+    const runner = createRunner();
+    const service = new UnclonableService(createContext(), runner.createTransaction);
+    const next = createContext({ isInTransaction: true, id: "next" });
+
+    expect(() => service.withContext(next).issued).toThrow(TypeError);
   });
 });
 
