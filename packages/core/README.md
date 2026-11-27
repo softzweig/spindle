@@ -56,6 +56,34 @@ describes how rows are ordered and how a row becomes a cursor; `@softzweig/spind
 and `@softzweig/spindle-memory` both ship ready-made definitions, including composite ones
 such as a timestamp paired with an id.
 
+## Errors
+
+A repository throws what a caller can branch on. A malformed call is a programmer mistake and
+stays a JavaScript error: a `RangeError` for a page limit that is not a positive integer, a
+`TypeError` for a filter or cursor a backend cannot express. A well formed call that cannot
+succeed throws `RepositoryError`, which carries a `ServiceErrorCode`:
+
+```ts
+import { RepositoryError } from "@softzweig/spindle-core/repository";
+
+try {
+  await assets.patch(id, { note: "reviewed" });
+} catch (error) {
+  if (error instanceof RepositoryError) {
+    // error.code maps like a service failure
+  }
+}
+```
+
+`toServiceFailure` maps it already, so a repository error escaping a prepared execution keeps
+its code and message instead of collapsing into `unknown`.
+
+## Imports
+
+The package has no root entry point: every import names the module it comes from
+(`@softzweig/spindle-core/service`, `/repository`, `/result`, `/transactional`). A service, a
+repository and a result therefore never pull each other in just because one of them is used.
+
 ## Status
 
 Pre-1.0. The service, transaction and repository primitives are under active development,

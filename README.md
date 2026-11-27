@@ -109,6 +109,9 @@ projects: [
 `--project <name>` works on any Vitest command. Tests live in `packages/<name>/test/**` (or next to
 the source) and import the public API from source (`../src/index.js`), so no build step is required.
 
+The repository contract that both adapters run lives in `packages/core/test/contract`. It is test
+code, not part of a published package, and the adapter tests import it by relative path.
+
 ## Adding a package
 
 1. Create `packages/<name>` with its own `package.json`, `tsconfig.json`, and `tsconfig.build.json`.
