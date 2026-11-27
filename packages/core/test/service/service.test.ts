@@ -1,4 +1,5 @@
 import { describe, expect, it, test, vi } from "vitest";
+import { RepositoryError } from "../../src/repository/repository.error.js";
 import type { ServiceFailure } from "../../src/result.js";
 import { ServiceErrorCode } from "../../src/result.js";
 import { ServiceError } from "../../src/service/service.error.js";
@@ -58,6 +59,15 @@ describe("toServiceFailure", () => {
       code: ServiceErrorCode.NOT_FOUND,
       message: "Missing",
       details,
+    });
+  });
+
+  it("preserves a RepositoryError the same way", () => {
+    expect(toServiceFailure(RepositoryError.notFound("Missing", { id: 1 }))).toEqual({
+      ok: false,
+      code: ServiceErrorCode.NOT_FOUND,
+      message: "Missing",
+      details: { id: 1 },
     });
   });
 
@@ -278,26 +288,6 @@ describe("Service", () => {
         ok: false,
         code: ServiceErrorCode.NOT_FOUND,
         message: "Missing",
-      });
-    });
-  });
-
-  describe("deprecated aliases", () => {
-    it("transactional delegates to prepareTransaction", async () => {
-      const { service } = setup(createContext());
-
-      await expect(service.transactional(async () => 9).run()).resolves.toEqual({
-        ok: true,
-        data: 9,
-      });
-    });
-
-    it("nontransactional delegates to prepareNonTransaction", async () => {
-      const { service } = setup(createContext());
-
-      await expect(service.nontransactional(async () => 9).run()).resolves.toEqual({
-        ok: true,
-        data: 9,
       });
     });
   });

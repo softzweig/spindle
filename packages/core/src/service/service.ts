@@ -1,5 +1,11 @@
+import { RepositoryError } from "../repository/repository.error.js";
 import { ServiceErrorCode, type ServiceFailure } from "../result.js";
-import { BaseTransactional, FOLLOWS_CONTEXT, type TransactionalContext } from "../transactional.js";
+import {
+  BaseTransactional,
+  FOLLOWS_CONTEXT,
+  type TransactionalContext,
+  type TransactionRunner,
+} from "../transactional.js";
 import { ServiceError } from "./service.error.js";
 import { ServiceExecution } from "./service.execution.js";
 import { Lazy } from "./service.lazy.js";
@@ -116,10 +122,7 @@ export class Service<
    * @param context The context this service reads; any member may be a {@link Lazy}.
    * @param createTransaction The runner transactions are opened with.
    */
-  constructor(
-    context: TContext,
-    createTransaction: <T>(context: TContext, fn: (context: TContext) => Promise<T>) => Promise<T>,
-  ) {
+  constructor(context: TContext, createTransaction: TransactionRunner<TContext>) {
     super(resolveLazies(context), createTransaction);
   }
 
@@ -143,16 +146,6 @@ export class Service<
         .then((data) => ({ ok: true, data }) as const)
         .catch(this.context.toServiceFailure ?? toServiceFailure),
     );
-  }
-
-  /** @deprecated Use {@link prepareTransaction} instead (leftover from @softzweig/suitcase) */
-  transactional<T>(fn: (this: this, context: TContext) => Promise<T>): ServiceExecution<T> {
-    return this.prepareTransaction(fn);
-  }
-
-  /** @deprecated Use {@link prepareNonTransaction} instead (leftover from @softzweig/suitcase) */
-  nontransactional<T>(fn: (this: this, context: TContext) => Promise<T>): ServiceExecution<T> {
-    return this.prepareNonTransaction(fn);
   }
 
   /**
@@ -238,7 +231,7 @@ function resolveLazies<TContext extends ServiceContext>(context: TContext): TCon
  * @human
  */
 export function toServiceFailure(error: unknown) {
-  if (error instanceof ServiceError) {
+  if (error instanceof ServiceError || error instanceof RepositoryError) {
     return {
       ok: false,
       code: error.code,

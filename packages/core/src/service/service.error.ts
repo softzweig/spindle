@@ -7,9 +7,10 @@ export type AuthorizationVerdict = boolean | undefined | null | string;
  * A domain outcome that services throw and consumers translate into their own
  * transport (HTTP status, tRPC code, queue retry policy).
  *
- * Lives in server, not core: it is a thrown error, so nobody outside the
- * server process can receive it. Core carries only what crosses a boundary —
- * {@link ServiceErrorCode} and {@link ServiceFailure}.
+ * This class and `RepositoryError` carry the same vocabulary and deliberately stay
+ * separate: a repository reports the state of its storage, a service reports the
+ * outcome of a use case. Repositories throw `RepositoryError`, services translate it,
+ * and the default `toServiceFailure` understands both.
  *
  * @human
  */
@@ -63,15 +64,6 @@ export class ServiceError extends Error {
   ): asserts condition {
     if (condition) return;
     throw ServiceError.of(code, message, details);
-  }
-
-  /** @deprecated Use `assert` instead (defaults to PRECONDITION_FAILED) */
-  static assertPrecondition(
-    condition: unknown,
-    message: string,
-    details?: Record<string, unknown>,
-  ) {
-    ServiceError.assert(condition, message, details);
   }
 
   static assertFound(condition: unknown, message: string, details?: Record<string, unknown>) {

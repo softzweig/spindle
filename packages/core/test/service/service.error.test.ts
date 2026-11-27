@@ -91,7 +91,6 @@ describe("specific assertions", () => {
     ["assertAllowed", ServiceErrorCode.FORBIDDEN],
     ["assertValidInput", ServiceErrorCode.INVALID_INPUT],
     ["assertAvailable", ServiceErrorCode.UNAVAILABLE],
-    ["assertPrecondition", ServiceErrorCode.PRECONDITION_FAILED],
   ] as const)("%s rejects with %s", ([guard, code]) => {
     const error = captureError(() => ServiceError[guard](false, "Message"));
 
