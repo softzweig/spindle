@@ -27,6 +27,12 @@ export type TransactionalContext = {
   readonly [TRANSACTION_EXECUTOR]?: unknown;
 };
 
+/** Opens a transaction and runs `work` against the context it is bound to. */
+export type TransactionRunner<TCtx extends TransactionalContext> = <T>(
+  context: TCtx,
+  work: (context: TCtx) => Promise<T>,
+) => Promise<T>;
+
 export interface Transactional<TCtx extends TransactionalContext> {
   /** Returns the current transaction context */
   getContext(): Readonly<TCtx>;
@@ -95,10 +101,7 @@ const bindMembers = <TCtx extends TransactionalContext>(ctx: Readonly<TCtx>) =>
 export class BaseTransactional<TCtx extends TransactionalContext> implements Transactional<TCtx> {
   constructor(
     protected readonly context: TCtx,
-    private readonly createTransaction: <T>(
-      context: TCtx,
-      fn: (context: TCtx) => Promise<T>,
-    ) => Promise<T>,
+    private readonly createTransaction: TransactionRunner<TCtx>,
   ) {
     this.context = context;
   }
