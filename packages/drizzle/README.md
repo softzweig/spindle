@@ -151,3 +151,18 @@ Filter keys are entity property names and are resolved through the table
 columns. A scalar becomes `=`, an array becomes `in (...)`, `null` becomes
 `is null`, and an unknown property throws a `TypeError` instead of silently
 widening the query.
+
+## Constraint failures
+
+A write that breaks a constraint throws `RepositoryError` instead of the driver's own
+error, so a caller branches on `code` and a service can map it without parsing messages:
+
+| Constraint                                                                                                                                       | Code            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| Unique index or primary key (`23505`, `SQLITE_CONSTRAINT_UNIQUE`, `SQLITE_CONSTRAINT_PRIMARYKEY`)                                                | `conflict`      |
+| Not null, foreign key, check (`23502`, `23503`, `23514`, `SQLITE_CONSTRAINT_NOTNULL`, `SQLITE_CONSTRAINT_FOREIGNKEY`, `SQLITE_CONSTRAINT_CHECK`) | `invalid_input` |
+
+The message is the one the driver wrote, and `details.driverCode` keeps its code. Anything
+else, a lost connection or a deadlock, is rethrown untouched with its original stack, so an
+unusual failure is never flattened into `unknown`. The mapping is exported as
+`toRepositoryError` when a custom statement needs the same treatment.

@@ -27,6 +27,7 @@ import {
   sql,
   type Table,
 } from "drizzle-orm";
+import { toRepositoryError } from "./errors.js";
 
 /** A row as returned by a statement whose table type is only known generically. */
 type Row = Record<string, unknown>;
@@ -309,7 +310,10 @@ export abstract class AbstractDrizzleRepository<
   }
 
   override async insert(dto: Readonly<EntityInsert<TEntity>>): Promise<TEntity> {
-    const [row] = await this.db.insert(this.source()).values(this.toRow(dto)).returning();
+    const rows = await this.attempt(() =>
+      this.db.insert(this.source()).values(this.toRow(dto)).returning(),
+    );
+    const [row] = rows;
 
     if (!row) throw new TypeError("insert returned no row");
 
@@ -323,11 +327,9 @@ export abstract class AbstractDrizzleRepository<
     const sqlFilter = this.where(filter);
     if (!sqlFilter) return [];
 
-    const rows = await this.db
-      .update(this.source())
-      .set(this.toRow(patch))
-      .where(sqlFilter)
-      .returning();
+    const rows = await this.attempt(() =>
+      this.db.update(this.source()).set(this.toRow(patch)).where(sqlFilter).returning(),
+    );
 
     return this.toDtos(rows);
   }
@@ -336,9 +338,20 @@ export abstract class AbstractDrizzleRepository<
     const sqlFilter = this.where(filter);
     if (!sqlFilter) return [];
 
-    const rows = await this.db.delete(this.source()).where(sqlFilter).returning();
+    const rows = await this.attempt(() =>
+      this.db.delete(this.source()).where(sqlFilter).returning(),
+    );
 
     return this.toDtos(rows);
+  }
+
+  /** Runs a write, reporting a constraint failure as a {@link RepositoryError}. */
+  protected async attempt<T>(work: () => PromiseLike<T>): Promise<T> {
+    try {
+      return await work();
+    } catch (error) {
+      throw toRepositoryError(error);
+    }
   }
 
   /** Counts the rows matching `filter` in the database, without loading them. */

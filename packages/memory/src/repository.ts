@@ -8,6 +8,7 @@ import {
   type EntityPatch,
   type Paging,
   type RepositoryContext,
+  RepositoryError,
 } from "@softzweig/spindle-core/repository";
 import { TRANSACTION_EXECUTOR } from "@softzweig/spindle-core/transactional";
 import { MemoryStore } from "./store.js";
@@ -137,6 +138,14 @@ export class MemoryRepository<
   override async insert(dto: Readonly<EntityInsert<TEntity>>): Promise<TEntity> {
     // The core contract promises an id when the caller does not supply one.
     const entity = { ...dto, id: dto.id ?? randomUUID() } as TEntity;
+
+    // SQL rejects a duplicate primary key, so the in-memory store has to as well, or a test
+    // that overwrites a row would pass here and fail on a real backend.
+    if (this.store.get(entity.id)) {
+      throw RepositoryError.conflict(`Entity with id ${entity.id} already exists`, {
+        id: entity.id,
+      });
+    }
 
     return this.store.set(entity);
   }

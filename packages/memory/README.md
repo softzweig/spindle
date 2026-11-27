@@ -26,7 +26,8 @@ await assets.findById(asset.id); // asset
 
 `MemoryRepository` is concrete, there is no subclass to write: the entity is the
 row, and the id filter is the standard `id` property. An insert without an `id`
-gets a generated one, as the core contract promises.
+gets a generated one, as the core contract promises, and an insert that reuses an
+id throws a `RepositoryError` with `conflict`, the same answer a primary key gives.
 
 ## Filters
 

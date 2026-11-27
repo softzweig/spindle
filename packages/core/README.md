@@ -78,6 +78,10 @@ try {
 `toServiceFailure` maps it already, so a repository error escaping a prepared execution keeps
 its code and message instead of collapsing into `unknown`.
 
+`AbstractRepository` reports `not_found` for a patch that matched nothing. What a backend can
+detect on its own, an adapter reports too: a duplicate id is `conflict`, and a violated column
+rule is `invalid_input`. Everything else stays the driver's error, unflattened.
+
 ## Imports
 
 The package has no root entry point: every import names the module it comes from

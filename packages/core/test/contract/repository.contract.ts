@@ -376,6 +376,18 @@ export function describeRepositoryContract<TContext extends RepositoryContext>(
         await expect(db.assets.findById(asset.id)).resolves.toEqual(asset);
       });
 
+      it("rejects inserting an id that already exists", async () => {
+        const asset = await givenAsset();
+
+        const error = await db.assets.insert(asset).catch((thrown: unknown) => thrown);
+
+        expect(error).toMatchObject({
+          name: "RepositoryError",
+          code: SpindleErrorCode.CONFLICT,
+        });
+        await expect(db.assets.findById(asset.id)).resolves.toEqual(asset);
+      });
+
       it("patches one row by id", async () => {
         const asset = await givenAsset();
         const patched = { ...asset, size: 64 };
