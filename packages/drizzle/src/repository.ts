@@ -176,6 +176,10 @@ function idColumnOf(table: Table): Column {
  *
  * What a repository pages by when its entity is its own row, and a repository that pages by
  * something else passes its own {@link DrizzlePaging}.
+ *
+ * @note This is recommended on monotonically increasing ID columns. Non-monotonic ID columns may
+ * lead to unexpected paging behavior, which is why for those kind of tables,
+ * {@link pagingByCreatedAt} is recommended.
  */
 export const pagingById = <TEntity extends Entity>(
   table: Table,
@@ -189,6 +193,9 @@ export const pagingById = <TEntity extends Entity>(
  *
  * What a table whose timestamps repeat needs: the timestamp orders the pages and the id
  * makes that order total, so two rows written in the same second cannot hide each other.
+ *
+ * @note This is recommended on non-monotonic increasing ID columns. Use the more simpler
+ * {@link pagingById} instead for monotonically increasing ID columns.
  */
 export const pagingByCreatedAt = <TEntity extends CreatedAtEntity>(table: {
   readonly createdAt: Column;
