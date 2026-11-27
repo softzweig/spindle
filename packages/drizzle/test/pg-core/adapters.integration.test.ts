@@ -1,11 +1,12 @@
 import { PGlite } from "@electric-sql/pglite";
 import type { Repository } from "@softzweig/spindle-core/repository";
 import { drizzle } from "drizzle-orm/pglite";
+import type { Asset } from "../../../core/test/contract/repository.contract.js";
 import { createPostgresAdapters } from "../../src/pg-core/adapters.js";
 import { PostgresRepository } from "../../src/pg-core/repositories.js";
 import type { DrizzleContext } from "../../src/repository.js";
 import { describeAdapters } from "../contract/adapters.integration.js";
-import { type Asset, type AssetFilter, assets, assetsDdl } from "../support/assets.js";
+import { type AssetFilter, assets, assetsDdl } from "../support/assets.js";
 
 type AssetRepository = Repository<Asset, DrizzleContext, AssetFilter>;
 

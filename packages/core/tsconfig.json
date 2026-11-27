@@ -1,5 +1,9 @@
 {
   "extends": "@softzweig/typescript-config/base.json",
   "include": ["src", "test"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules"],
+  "compilerOptions": {
+    // The shared repository contract builds its fixtures with `node:crypto`.
+    "types": ["node"]
+  }
 }

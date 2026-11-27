@@ -4,9 +4,10 @@ import {
   type TransactionalContext,
 } from "@softzweig/spindle-core/transactional";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { type Asset, newAsset } from "../../../core/test/contract/repository.contract.js";
 import type { DrizzleAdapters } from "../../src/adapters.js";
 import type { DrizzleContext } from "../../src/repository.js";
-import { type Asset, type AssetFilter, newAsset } from "../support/assets.js";
+import type { AssetFilter } from "../support/assets.js";
 
 type AssetRepository = Repository<Asset, DrizzleContext, AssetFilter>;
 

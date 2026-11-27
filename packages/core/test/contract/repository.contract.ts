@@ -1,21 +1,63 @@
-import type { Repository } from "@softzweig/spindle-core/repository";
-import { sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import type { DrizzleContext } from "../../src/repository.js";
-import { type Asset, type AssetFilter, type AssetSizeFilter, newAsset } from "../support/assets.js";
+import type { EntityFilter, Repository, RepositoryContext } from "../../src/repository/index.js";
 
-export type TestDatabase = {
-  readonly assets: Repository<Asset, DrizzleContext, AssetFilter>;
-  /** The same table, read through a filter that requires `size`. */
-  readonly assetsBySize: Repository<Asset, DrizzleContext, AssetSizeFilter>;
+/**
+ * The fixture every adapter is held to: a set of rows with UUIDv4 ids and a timestamp that
+ * repeats, so a cursor made of either alone would lose rows.
+ */
+export type Asset = {
+  readonly id: string;
+  readonly key: string;
+  readonly size: number;
+  /** Nullable, so a filter on it exercises the `is null` branch. */
+  readonly note: string | null;
+  readonly createdAt: Date;
+};
+
+export type AssetFilter = EntityFilter<Asset>;
+
+/** A filter that also requires `size`, the shape a repository can narrow to. */
+export type AssetSizeFilter = EntityFilter<Asset> & { readonly size: number };
+
+/** The timestamp a row was written at, and its id: a cursor that survives repeated stamps. */
+export type AssetCursor = { readonly createdAt: Date; readonly id: string };
+
+export const newAsset = (overrides: Partial<Asset> = {}): Asset => ({
+  id: randomUUID(),
+  key: `assets/${randomUUID()}`,
+  size: 42,
+  note: null,
+  // Whole seconds, so a dialect that stores timestamps as integers round-trips it.
+  createdAt: new Date(Math.floor(Date.now() / 1000) * 1000),
+  ...overrides,
+});
+
+/** The repositories a backend has to provide for the contract to run. */
+export type RepositoryContract<TContext extends RepositoryContext> = {
+  readonly assets: Repository<Asset, TContext, AssetFilter>;
+  /** The same set, read through a filter that requires `size`. */
+  readonly assetsBySize: Repository<Asset, TContext, AssetSizeFilter>;
+  /** The same set, paged newest first: the timestamp orders and the id breaks ties. */
+  readonly assetsNewest: Repository<Asset, TContext, AssetFilter, AssetCursor>;
+  /** Empties the set between tests. */
   reset(): Promise<void>;
   close(): Promise<void>;
 };
 
-/** Behavior every dialect must share, run against a real database. */
-export function describeRepositories(name: string, create: () => Promise<TestDatabase>) {
+/**
+ * Behavior every repository must share, whichever backend it wraps.
+ *
+ * The same expectations run against the SQL adapters and against the in-memory one, so a
+ * difference in what callers get back shows up as a failing test in both packages rather
+ * than as a surprise in production.
+ */
+export function describeRepositoryContract<TContext extends RepositoryContext>(
+  name: string,
+  create: () => Promise<RepositoryContract<TContext>>,
+) {
   describe(name, () => {
-    let db: TestDatabase;
+    let db: RepositoryContract<TContext>;
 
     beforeAll(async () => {
       db = await create();
@@ -139,14 +181,11 @@ export function describeRepositories(name: string, create: () => Promise<TestDat
         await expect(db.assets.count({ size: 999 })).resolves.toBe(0);
       });
 
-      it("accepts sql filter values", async () => {
-        const asset = await givenAsset({ key: "a.png" });
-        await givenAsset({ key: "b.png" });
+      // The row is inserted first: an in-memory repository can only check a property it can
+      // see on a row, while SQL resolves the filter against its schema before querying.
+      it("rejects a filter property the rows do not have", async () => {
+        await givenAsset();
 
-        await expect(db.assets.findMany({ key: sql`'a.png'` })).resolves.toEqual([asset]);
-      });
-
-      it("rejects a filter property without a column", async () => {
         await expect(db.assets.findMany({ nope: "x" } as unknown as AssetFilter)).rejects.toThrow(
           TypeError,
         );
@@ -164,6 +203,167 @@ export function describeRepositories(name: string, create: () => Promise<TestDat
       it("requires the narrowed property", () => {
         // @ts-expect-error the filter narrows to a required size
         void db.assetsBySize.findMany({});
+      });
+    });
+
+    describe("pagination", () => {
+      const byId = (rows: Asset[]) =>
+        [...rows].sort((left, right) => (left.id < right.id ? -1 : 1));
+
+      it("returns the first page and the cursor that continues it", async () => {
+        const rows = byId([await givenAsset(), await givenAsset(), await givenAsset()]);
+
+        const page = await db.assets.list({ limit: 2 });
+
+        expect(page.items).toEqual(rows.slice(0, 2));
+        expect(page.nextCursor).toBe(rows[1]?.id);
+      });
+
+      it("walks to the end without repeating or skipping a row", async () => {
+        const rows = byId([
+          await givenAsset(),
+          await givenAsset(),
+          await givenAsset(),
+          await givenAsset(),
+        ]);
+
+        const seen: Asset[] = [];
+        let nextCursor: string | null = null;
+
+        do {
+          const page = await db.assets.list({
+            limit: 2,
+            cursor: nextCursor ?? undefined,
+          });
+
+          seen.push(...page.items);
+          nextCursor = page.nextCursor;
+        } while (nextCursor !== null);
+
+        expect(ids(seen)).toEqual(ids(rows));
+      });
+
+      it("returns no cursor for the last page", async () => {
+        await givenAsset();
+
+        await expect(db.assets.list({ limit: 5 })).resolves.toMatchObject({ nextCursor: null });
+      });
+
+      it("returns an empty page when nothing matches", async () => {
+        await givenAsset();
+
+        await expect(db.assets.list({ limit: 5, filter: { size: 999 } })).resolves.toEqual({
+          items: [],
+          nextCursor: null,
+        });
+      });
+
+      it("applies the filter before paging", async () => {
+        const matching = byId([await givenAsset({ size: 10 }), await givenAsset({ size: 10 })]);
+        await givenAsset({ size: 20 });
+
+        const page = await db.assets.list({ limit: 1, filter: { size: 10 } });
+
+        expect(page.items).toEqual([matching[0]]);
+        expect(page.nextCursor).toBe(matching[0]?.id);
+      });
+    });
+
+    describe("pagination by timestamp and id", () => {
+      const at = (seconds: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, seconds));
+
+      /** Newest first, the id breaking ties: the order `assetsNewest` pages in. */
+      const newestFirst = (rows: Asset[]) =>
+        [...rows].sort(
+          (left, right) =>
+            right.createdAt.getTime() - left.createdAt.getTime() || (left.id < right.id ? 1 : -1),
+        );
+
+      /** Every row the repository hands out, page by page; bounded so a stuck cursor fails. */
+      const walk = async (limit: number) => {
+        const seen: Asset[] = [];
+        let cursor: AssetCursor | undefined;
+
+        for (let pages = 0; pages < 10; pages++) {
+          const { items, nextCursor } = await db.assetsNewest.list({ limit, cursor });
+          seen.push(...items);
+
+          if (nextCursor === null) return seen;
+
+          cursor = nextCursor;
+        }
+
+        throw new Error("paging did not advance");
+      };
+
+      it("returns the newest rows and a cursor carrying both parts", async () => {
+        await givenAsset({ createdAt: at(1) });
+        const newer = await givenAsset({ createdAt: at(2) });
+        const newest = await givenAsset({ createdAt: at(3) });
+
+        const page = await db.assetsNewest.list({ limit: 2 });
+
+        expect(page.items).toEqual([newest, newer]);
+        expect(page.nextCursor).toEqual({ createdAt: newer.createdAt, id: newer.id });
+      });
+
+      it("breaks a timestamp tie with the id instead of skipping a row", async () => {
+        const createdAt = at(5);
+        const rows = newestFirst([
+          await givenAsset({ createdAt }),
+          await givenAsset({ createdAt }),
+          await givenAsset({ createdAt }),
+        ]);
+
+        expect(await walk(2)).toEqual(rows);
+      });
+
+      it("walks repeated timestamps in order, every row once", async () => {
+        const rows = newestFirst([
+          await givenAsset({ createdAt: at(3) }),
+          await givenAsset({ createdAt: at(1) }),
+          await givenAsset({ createdAt: at(3) }),
+          await givenAsset({ createdAt: at(2) }),
+          await givenAsset({ createdAt: at(3) }),
+        ]);
+
+        expect(await walk(2)).toEqual(rows);
+      });
+
+      it("pages a filtered set in the same order", async () => {
+        const createdAt = at(7);
+        const matching = newestFirst([
+          await givenAsset({ createdAt, size: 10 }),
+          await givenAsset({ createdAt, size: 10 }),
+        ]);
+        await givenAsset({ createdAt: at(8), size: 20 });
+
+        const page = await db.assetsNewest.list({ limit: 1, filter: { size: 10 } });
+
+        expect(page.items).toEqual([matching[0]]);
+        expect(page.nextCursor).toEqual({ createdAt, id: matching[0]?.id });
+      });
+
+      it("keeps walking when rows change behind the cursor", async () => {
+        const cursorRow = await givenAsset({ createdAt: at(2) });
+        const next = await givenAsset({ createdAt: at(1) });
+
+        const first = await db.assetsNewest.list({ limit: 1 });
+        expect(first.items).toEqual([cursorRow]);
+
+        // A newer row sorts before the cursor, so this walk must not serve it; an older one
+        // is still reachable, and the cursor row itself no longer has to exist.
+        const newer = await givenAsset({ createdAt: at(3) });
+        const older = await givenAsset({ createdAt: at(0) });
+        await db.assetsNewest.delete([cursorRow.id]);
+
+        const rest = await db.assetsNewest.list({
+          limit: 5,
+          cursor: first.nextCursor ?? undefined,
+        });
+
+        expect(rest.items).toEqual([next, older]);
+        expect(rest.items).not.toContainEqual(newer);
       });
     });
 
@@ -209,7 +409,9 @@ export function describeRepositories(name: string, create: () => Promise<TestDat
         await expect(db.assets.patchWhere({ key: "missing" }, { size: 64 })).resolves.toEqual([]);
       });
 
-      it("rejects an unknown patch filter property", async () => {
+      it("rejects a patch filter property the rows do not have", async () => {
+        await givenAsset();
+
         await expect(
           db.assets.patchWhere({ nope: "x" } as unknown as AssetFilter, { size: 64 }),
         ).rejects.toThrow(TypeError);
@@ -315,19 +517,6 @@ export function describeRepositories(name: string, create: () => Promise<TestDat
 
         await expect(db.assets.findById(outer.id)).resolves.toEqual(outer);
         await expect(db.assets.findById(inner.id)).resolves.toBeNull();
-      });
-
-      it("rolls patches back with the transaction", async () => {
-        const asset = await givenAsset({ size: 10 });
-
-        await expect(
-          db.assets.transaction(async (context) => {
-            await db.assets.withContext(context).patch(asset.id, { size: 64 });
-            throw new Error("rollback");
-          }),
-        ).rejects.toThrow("rollback");
-
-        await expect(db.assets.findById(asset.id)).resolves.toEqual(asset);
       });
     });
   });

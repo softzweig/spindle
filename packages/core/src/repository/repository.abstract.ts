@@ -1,4 +1,5 @@
-import { BaseTransactional } from "../transactional.js";
+import { BaseTransactional, type TransactionRunner } from "../transactional.js";
+import { type ListRequest, type Page, type Paging, toPage } from "./pagination.js";
 import type {
   Entity,
   EntityFilter,
@@ -10,21 +11,40 @@ import type {
 } from "./repository.js";
 
 /**
- * Base for every repository: implements the id lookups once, in terms of
- * {@link findMany}, so an adapter only has to describe how to query a set of rows.
+ * Base for every repository: implements the id lookups and the paging arithmetic once, so
+ * an adapter only has to describe how to query rows and how a row becomes its cursor.
  *
- * `findMany`, `insert`, `patchWhere` and `deleteWhere` stay abstract, they are the
- * parts that genuinely differ per backend; the transaction plumbing comes from
+ * `findMany`, `insert`, `patchWhere`, `deleteWhere` and `fetchPage` stay abstract, they are
+ * the parts that genuinely differ per backend; the transaction plumbing comes from
  * {@link BaseTransactional}.
  */
 export abstract class AbstractRepository<
     TEntity extends Entity,
     TContext extends RepositoryContext = RepositoryContext,
     TFilter extends EntityFilter<TEntity> = EntityFilter<TEntity>,
+    TCursor = EntityId<TEntity>,
   >
   extends BaseTransactional<TContext>
-  implements Repository<TEntity, TContext, TFilter>
+  implements Repository<TEntity, TContext, TFilter, TCursor>
 {
+  /** How this repository pages, as handed to the constructor. */
+  protected readonly paging: Paging<TEntity, TCursor>;
+
+  /**
+   * @param context The context this repository is bound to.
+   * @param createTransaction The runner transactions are opened with.
+   * @param paging How a row becomes the cursor that resumes after it. Paging by an id is
+   *   `{ read: (entity) => entity.id }`; a cursor that carries more is read the same way.
+   */
+  constructor(
+    context: TContext,
+    createTransaction: TransactionRunner<TContext>,
+    paging: Paging<TEntity, TCursor>,
+  ) {
+    super(context, createTransaction);
+    this.paging = paging;
+  }
+
   abstract findMany(filter: Readonly<TFilter & { limit?: number }>): Promise<TEntity[]>;
 
   abstract insert(dto: Readonly<EntityInsert<TEntity>>): Promise<TEntity>;
@@ -34,6 +54,37 @@ export abstract class AbstractRepository<
   abstract deleteWhere(filter: Readonly<TFilter>): Promise<TEntity[]>;
 
   abstract idFilter(ids: readonly EntityId<TEntity>[]): TFilter;
+
+  /**
+   * One page of rows, in the order the repository pages in.
+   *
+   * The rows come back unsliced and in cursor order; {@link toPage} slices them into the
+   * page its caller asked for.
+   */
+  protected abstract fetchPage(
+    filter: Readonly<TFilter> | undefined,
+    cursor: TCursor | undefined,
+    limit: number,
+  ): Promise<TEntity[]>;
+
+  /**
+   * One page of entities, and the cursor that continues it.
+   *
+   * @see {@link Repository.list}
+   */
+  async list(request: Readonly<ListRequest<TFilter, TCursor>>): Promise<Page<TEntity, TCursor>> {
+    const { limit, cursor, filter } = request;
+
+    // A page of nothing is a caller mistake, and slicing by a fraction or a NaN hides it.
+    if (!Number.isInteger(limit) || limit < 1) {
+      throw new RangeError(`page limit must be a positive integer, got ${limit}`);
+    }
+
+    // The one row past the page is what tells a full page from the last one.
+    const rows = await this.fetchPage(filter, cursor, limit + 1);
+
+    return toPage(rows, limit, this.paging.read);
+  }
 
   async patch(id: EntityId<TEntity>, patch: EntityPatch<TEntity>): Promise<TEntity> {
     const [updated] = await this.patchWhere(this.idFilter([id]), patch);

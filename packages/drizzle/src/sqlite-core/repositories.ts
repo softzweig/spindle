@@ -6,7 +6,7 @@ import type {
 } from "@softzweig/spindle-core/repository";
 import type { InferInsertModel, InferSelectModel, SQL } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
-import { AbstractDrizzleRepository, type DrizzleDatabase } from "../repository.js";
+import { AbstractDrizzleRepository, type DrizzleDatabase, pagingById } from "../repository.js";
 
 type SqliteIdentityFilter<TTable extends SQLiteTable> = EntityFilter<
   Entity & InferSelectModel<TTable>,
@@ -20,24 +20,25 @@ type SqliteIdentityFilter<TTable extends SQLiteTable> = EntityFilter<
  *
  * A repository can narrow or extend its filter through `TFilter`; it defaults to
  * {@link EntityFilter} with SQL extension values.
+ *
+ * Pages by the row id, which is the ordering an identity binding can assume; the
+ * constructor also takes a `DrizzlePaging` spec for anything else.
  */
 export class SqliteRepository<
   TTable extends SQLiteTable,
   TEntity extends Entity = Entity & InferSelectModel<TTable>,
   TFilter extends EntityFilter<TEntity, SQL> = EntityFilter<TEntity, SQL>,
-> extends AbstractDrizzleRepository<TTable, TEntity, TFilter> {
-  constructor(
-    db: DrizzleDatabase,
-    readonly table: TTable,
-  ) {
-    super(db);
-  }
-
+  TCursor = EntityId<TEntity>,
+> extends AbstractDrizzleRepository<TTable, TEntity, TFilter, TCursor> {
   static of<
     TTable extends SQLiteTable,
     TFilter extends SqliteIdentityFilter<TTable> = SqliteIdentityFilter<TTable>,
   >(db: DrizzleDatabase, table: TTable) {
-    return new SqliteRepository<TTable, Entity & InferSelectModel<TTable>, TFilter>(db, table);
+    return new SqliteRepository<TTable, Entity & InferSelectModel<TTable>, TFilter>(
+      db,
+      table,
+      pagingById(table),
+    );
   }
 
   protected toDto(row: InferSelectModel<TTable>): TEntity {

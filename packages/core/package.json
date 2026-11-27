@@ -16,8 +16,6 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     "./result": {
       "types": "./dist/result.d.ts",
@@ -50,6 +48,7 @@
   },
   "devDependencies": {
     "@softzweig/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
     "typescript": "catalog:"
   }
 }
