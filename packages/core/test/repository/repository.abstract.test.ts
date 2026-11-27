@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AbstractRepository } from "../../src/repository/repository.abstract.js";
+import { RepositoryError } from "../../src/repository/repository.error.js";
 import type {
   Entity,
   EntityFilter,
@@ -158,12 +159,17 @@ describe("AbstractRepository mutations", () => {
     expect(repository.patchWhereCalls).toEqual([{ filter: { id: [1] }, patch }]);
   });
 
-  it("patch throws when no row matches", async () => {
+  it("patch throws a not found repository error when no row matches", async () => {
     const repository = createRepository();
 
-    await expect(repository.patch(2, { name: "Nobody" })).rejects.toThrow(
-      "Entity with id 2 not found",
-    );
+    const error = await repository.patch(2, { name: "Nobody" }).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(RepositoryError);
+    expect(error).toMatchObject({
+      message: "Entity with id 2 not found",
+      code: "not_found",
+      details: { id: 2 },
+    });
   });
 
   it("delete removes through deleteWhere", async () => {

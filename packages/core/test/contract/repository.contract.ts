@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { EntityFilter, Repository, RepositoryContext } from "../../src/repository/index.js";
+import { ServiceErrorCode } from "../../src/result.js";
 
 /**
  * The fixture every adapter is held to: a set of rows with UUIDv4 ids and a timestamp that
@@ -383,8 +384,18 @@ export function describeRepositoryContract<TContext extends RepositoryContext>(
         await expect(db.assets.findById(asset.id)).resolves.toEqual(patched);
       });
 
-      it("rejects patching an unknown id", async () => {
-        await expect(db.assets.patch("missing", { size: 64 })).rejects.toThrow();
+      it("rejects patching an unknown id with a not found repository error", async () => {
+        const error = await db.assets
+          .patch("missing", { size: 64 })
+          .catch((thrown: unknown) => thrown);
+
+        // Matched by shape rather than by class: this file is imported into adapters that run
+        // against the built package, so asserting the class object would compare two copies.
+        expect(error).toMatchObject({
+          name: "RepositoryError",
+          code: ServiceErrorCode.NOT_FOUND,
+          details: { id: "missing" },
+        });
       });
 
       it("patches every matching row", async () => {

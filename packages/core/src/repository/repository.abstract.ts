@@ -1,5 +1,6 @@
 import { BaseTransactional, type TransactionRunner } from "../transactional.js";
 import { type ListRequest, type Page, type Paging, toPage } from "./pagination.js";
+import { RepositoryError } from "./repository.error.js";
 import type {
   Entity,
   EntityFilter,
@@ -88,7 +89,9 @@ export abstract class AbstractRepository<
 
   async patch(id: EntityId<TEntity>, patch: EntityPatch<TEntity>): Promise<TEntity> {
     const [updated] = await this.patchWhere(this.idFilter([id]), patch);
-    if (!updated) throw new Error(`Entity with id ${id} not found`);
+    if (!updated) {
+      throw RepositoryError.notFound(`Entity with id ${id} not found`, { id });
+    }
     return updated;
   }
 

@@ -13,6 +13,8 @@ describe("public module surface", () => {
 
   it("exports the repository primitives", () => {
     expect(repository.AbstractRepository).toBeTypeOf("function");
+    expect(repository.RepositoryError).toBeTypeOf("function");
+    expect(repository.toPage).toBeTypeOf("function");
   });
 
   it("exports the transaction primitives", () => {
