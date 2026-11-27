@@ -32,7 +32,12 @@ gets a generated one, as the core contract promises.
 
 Filter keys are entity properties: a scalar matches equality, an array matches
 membership, `null` matches a null or absent value, and an undefined value is
-ignored. An empty array matches nothing.
+ignored. An empty array matches nothing, and a key the rows do not have throws,
+the same way an unmapped column does for SQL.
+
+This package runs the same repository contract as `@softzweig/spindle-drizzle`
+(`packages/core/test/contract`), so the two are interchangeable: the same call
+returns the same result, transactions included.
 
 Writes with no clause in their filter (`{}`, or only undefined values) match
 nothing, the same guard the SQL adapters apply, so a forgotten filter cannot take
@@ -55,6 +60,39 @@ class LargeAssets extends MemoryRepository<Asset, RecentFilter> {
 
 declare const largeAssets: LargeAssets;
 await largeAssets.findMany({ minimumSize: 100 });
+```
+
+## Pagination
+
+`list` returns one page and the cursor that continues it. A repository says how its rows
+become cursors, and in which order, through the first constructor argument:
+
+```ts
+import { MemoryRepository } from "@softzweig/spindle-memory";
+
+// Pages by id.
+const assets = MemoryRepository.byId<Asset, AssetFilter>();
+
+// Pages newest first, the id breaking ties.
+const latest = MemoryRepository.byCreatedAt<Asset, AssetFilter>();
+
+// Anything else is a cursor of your own.
+const newest = new MemoryRepository<Asset, AssetFilter, number>({
+  read: (asset) => asset.size,
+  compare: (left, right) => right - left,
+});
+```
+
+`read` takes the cursor of a row and `compare` orders two cursors; without one, cursors
+are ordered as the values SQL compares, strings lexicographically and numbers numerically.
+A cursor that carries more than one value needs a `compare` of its own. The page filter and
+the sort are both built on the two, so a page resumes after its last row instead of
+skipping or repeating one, and `list` asks for one row more than the page holds, which is
+what tells a full page from the last one.
+
+```ts
+const page = await assets.list({ limit: 10 });
+const next = await assets.list({ limit: 10, cursor: page.nextCursor ?? undefined });
 ```
 
 ## Transactions

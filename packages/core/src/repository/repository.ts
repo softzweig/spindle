@@ -1,4 +1,5 @@
 import type { Transactional, TransactionalContext } from "../transactional.js";
+import type { ListRequest, Page } from "./pagination.js";
 
 /**
  * What a repository hands a transaction callback, and what a service can assert on.
@@ -13,7 +14,7 @@ export type Entity = Record<string, unknown> & {
   id: string | number; // Every entity/DTO must have a unique string or number identifier
 };
 
-export type EntityId<E> = E extends Entity ? E["id"] : never;
+export type EntityId<E extends Entity> = E["id"];
 
 export type EntityInsert<E extends Entity> = Omit<E, "id"> & { id?: EntityId<E> };
 
@@ -47,6 +48,7 @@ export interface Repository<
   TEntity extends Entity,
   TContext extends RepositoryContext = RepositoryContext,
   TFilter extends EntityFilter<TEntity> = EntityFilter<TEntity>,
+  TCursor = EntityId<TEntity>,
 > extends Transactional<TContext> {
   // Lookups
 
@@ -58,6 +60,9 @@ export interface Repository<
 
   /** Finds entities matching the given filter. */
   findMany(filter: Readonly<TFilter & { limit?: number }>): Promise<TEntity[]>;
+
+  /** Lists one page of entities matching `filter`, in the repository's cursor order. */
+  list(request: Readonly<ListRequest<TFilter, TCursor>>): Promise<Page<TEntity, TCursor>>;
 
   /** Finds a single entity matching the given filter. Returns `null` if not found. */
   findOne(filter: Readonly<TFilter>): Promise<TEntity | null>;

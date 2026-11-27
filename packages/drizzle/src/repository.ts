@@ -5,18 +5,24 @@ import {
   type EntityId,
   type EntityInsert,
   type EntityPatch,
+  type Paging,
   type RepositoryContext,
 } from "@softzweig/spindle-core/repository";
 import { TRANSACTION_EXECUTOR } from "@softzweig/spindle-core/transactional";
 import {
   and,
+  asc,
   type Column,
+  desc,
   eq,
   getTableColumns,
+  gt,
   type InferInsertModel,
   type InferSelectModel,
   inArray,
   isNull,
+  lt,
+  or,
   type SQL,
   sql,
   type Table,
@@ -29,6 +35,18 @@ type Row = Record<string, unknown>;
 interface SelectedTable {
   where(condition: SQL | undefined): PromiseLike<Row[]>;
   limit(count: number): { where(condition: SQL | undefined): PromiseLike<Row[]> };
+}
+
+/**
+ * The builder a page reads: drizzle's own, narrowed to the steps that narrow, order and
+ * limit. Reached through the cast in {@link AbstractDrizzleRepository.fetchPage} so the
+ * shared port stays dialect-neutral; `orderBy` is overloaded per dialect, which is why the
+ * shared shape cannot name it.
+ */
+interface PageQuery extends PromiseLike<Row[]> {
+  where(condition: SQL | undefined): PageQuery;
+  orderBy(...columns: (SQL | Column)[]): PageQuery;
+  limit(count: number): PageQuery;
 }
 
 /**
@@ -75,11 +93,121 @@ export interface DrizzleContext extends RepositoryContext {
 }
 
 /**
+ * One key of a paging order: the column compared, the direction it is walked in, and how
+ * to read that column's value back out of a cursor.
+ */
+export type DrizzleCursorKey<TCursor> = Readonly<{
+  column: Column;
+  /** The part of `cursor` that is compared against {@link column}. */
+  of(cursor: TCursor): unknown;
+  direction?: "asc" | "desc";
+}>;
+
+/**
+ * How a drizzle repository pages: the columns its order is built from, narrowest first, and
+ * how a row becomes the cursor that resumes after it.
+ *
+ * `TCursor` defaults to the row id; a cursor that carries more, a timestamp paired with an
+ * id for instance, is a type of its own and `read` has to match it.
+ */
+export type DrizzlePaging<TEntity extends Entity, TCursor = EntityId<TEntity>> = Paging<
+  TEntity,
+  TCursor
+> &
+  Readonly<{
+    keys: readonly [DrizzleCursorKey<TCursor>, ...DrizzleCursorKey<TCursor>[]];
+  }>;
+
+/**
+ * How a table may store when a row was written: a date, an ISO string or an epoch number.
+ *
+ * Each orders correctly in its own column, which is all paging asks of it.
+ */
+export type CreatedAtValue = Date | string | number;
+
+/** An entity that records when it was written, which is what {@link pagingByCreatedAt} needs. */
+type CreatedAtEntity = Entity & Readonly<{ createdAt: CreatedAtValue }>;
+
+/** The cursor for paging newest first: when a row was written, and its id to break ties. */
+export type CreatedAtCursor<TEntity extends CreatedAtEntity> = Readonly<{
+  createdAt: TEntity["createdAt"];
+  id: EntityId<TEntity>;
+}>;
+
+/**
+ * The clause a keyset page narrows by: the first key past its value, or a tie on it and the
+ * next key past its value, down to the last key. Comparing the keys in order keeps pages
+ * from overlapping when the leading key repeats.
+ */
+function keysetAfter<TCursor>(
+  keys: readonly DrizzleCursorKey<TCursor>[],
+  cursor: TCursor,
+): SQL | undefined {
+  const [key, ...rest] = keys;
+  if (!key) return undefined;
+
+  const value = key.of(cursor);
+  const past = key.direction === "desc" ? lt(key.column, value) : gt(key.column, value);
+  const tail = keysetAfter(rest, cursor);
+  if (!tail) return past;
+
+  const tie = and(eq(key.column, value), tail);
+  if (!tie) return past;
+
+  return or(past, tie) ?? past;
+}
+
+/** The columns an order is built from, narrowest key first. */
+function orderOf<TCursor>(keys: readonly DrizzleCursorKey<TCursor>[]): (SQL | Column)[] {
+  return keys.map(({ column, direction }) => (direction === "desc" ? desc(column) : asc(column)));
+}
+
+/** The `id` column of a table, the key a repository pages by when it declares none. */
+function idColumnOf(table: Table): Column {
+  const column = (getTableColumns(table) as Record<string, Column>).id;
+
+  if (!column) throw new TypeError('table has no "id" column to page by');
+
+  return column;
+}
+
+/**
+ * Paging by the row id, ascending.
+ *
+ * What a repository pages by when its entity is its own row, and a repository that pages by
+ * something else passes its own {@link DrizzlePaging}.
+ */
+export const pagingById = <TEntity extends Entity>(
+  table: Table,
+): DrizzlePaging<TEntity, EntityId<TEntity>> => ({
+  keys: [{ column: idColumnOf(table), of: (cursor) => cursor }],
+  read: (entity) => entity.id,
+});
+
+/**
+ * Paging newest first, the id breaking ties.
+ *
+ * What a table whose timestamps repeat needs: the timestamp orders the pages and the id
+ * makes that order total, so two rows written in the same second cannot hide each other.
+ */
+export const pagingByCreatedAt = <TEntity extends CreatedAtEntity>(table: {
+  readonly createdAt: Column;
+  readonly id: Column;
+}): DrizzlePaging<TEntity, CreatedAtCursor<TEntity>> => ({
+  keys: [
+    { column: table.createdAt, direction: "desc", of: (cursor) => cursor.createdAt },
+    { column: table.id, direction: "desc", of: (cursor) => cursor.id },
+  ],
+  read: (entity) => ({ createdAt: entity.createdAt, id: entity.id }),
+});
+
+/**
  * Base for a drizzle-backed repository.
  *
  * Reads and writes are implemented once: filters become `where` clauses, rows
  * become entities, and `findById`/`findByIds`/`findOne` come from the core
- * abstraction. An adapter supplies the table, the two mappers and the id filter.
+ * abstraction. An adapter supplies the two mappers, the id filter and, when the id
+ * is not what orders its pages, how its pages are ordered.
  *
  * The table is the first parameter and the entity defaults to its row type, so an
  * identity repository only has to name the table while a mapper-driven one names
@@ -89,22 +217,42 @@ export abstract class AbstractDrizzleRepository<
   TTable extends Table,
   TEntity extends Entity = Entity & InferSelectModel<TTable>,
   TFilter extends EntityFilter<TEntity, SQL> = EntityFilter<TEntity, SQL>,
-> extends AbstractRepository<TEntity, DrizzleContext, TFilter> {
-  constructor(db: DrizzleDatabase) {
-    super({ [TRANSACTION_EXECUTOR]: db, db, isInTransaction: false }, (context, work) =>
-      context.db.transaction((tx) =>
-        work({ [TRANSACTION_EXECUTOR]: tx, db: tx, isInTransaction: true }),
-      ),
+  TCursor = EntityId<TEntity>,
+> extends AbstractRepository<TEntity, DrizzleContext, TFilter, TCursor> {
+  /** The table this repository reads and writes. */
+  readonly table: TTable;
+
+  /**
+   * The keys its pages are ordered by, narrowest first.
+   *
+   * Only the keys are kept here: the reader belongs to the paging definition the base holds.
+   */
+  private readonly keys: readonly DrizzleCursorKey<TCursor>[];
+
+  /**
+   * @param db The executor the repository starts on.
+   * @param table The table it reads and writes.
+   * @param paging How pages are ordered and where they resume; {@link pagingById} for the
+   *   common case.
+   */
+  constructor(db: DrizzleDatabase, table: TTable, paging: DrizzlePaging<TEntity, TCursor>) {
+    super(
+      { [TRANSACTION_EXECUTOR]: db, db, isInTransaction: false },
+      (context, work) =>
+        context.db.transaction((tx) =>
+          work({ [TRANSACTION_EXECUTOR]: tx, db: tx, isInTransaction: true }),
+        ),
+      paging,
     );
+
+    this.table = table;
+    this.keys = paging.keys;
   }
 
   /** The executor this repository is bound to. */
   protected get db(): DrizzleDatabase {
     return this.context.db;
   }
-
-  /** The table this repository reads and writes. */
-  abstract readonly table: TTable;
 
   /** Maps a selected row to the domain entity. */
   protected abstract toDto(row: InferSelectModel<TTable>): TEntity;
@@ -126,6 +274,31 @@ export abstract class AbstractDrizzleRepository<
     const { limit, ...criteria } = filter;
 
     return this.toDtos(await this.select(this.where(criteria), limit));
+  }
+
+  /**
+   * One page of rows, in the order the paging spec declares.
+   *
+   * @see {@link AbstractRepository.list}
+   */
+  protected override async fetchPage(
+    filter: Readonly<TFilter> | undefined,
+    cursor: TCursor | undefined,
+    limit: number,
+  ): Promise<TEntity[]> {
+    const scoped = and(
+      filter && this.where(filter),
+      cursor === undefined ? undefined : keysetAfter(this.keys, cursor),
+    );
+
+    // Called on the database itself, not through a variable: the builder needs its receiver.
+    const rows = await (this.db.select as unknown as () => { from(table: Table): PageQuery })()
+      .from(this.source())
+      .where(scoped)
+      .orderBy(...orderOf(this.keys))
+      .limit(limit);
+
+    return this.toDtos(rows);
   }
 
   override async insert(dto: Readonly<EntityInsert<TEntity>>): Promise<TEntity> {

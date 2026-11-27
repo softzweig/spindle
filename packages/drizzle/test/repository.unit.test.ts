@@ -1,10 +1,23 @@
+import type { EntityFilter, EntityId, EntityInsert } from "@softzweig/spindle-core/repository";
+import type { SQL } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { pgTable, text } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { describe, expect, it } from "vitest";
-import { type AssetFilter, AssetRepository, type AssetRow } from "./support/assets.js";
+import type { Asset } from "../../core/test/contract/repository.contract.js";
+import {
+  AbstractDrizzleRepository,
+  type CreatedAtCursor,
+  type DrizzleDatabase,
+  pagingByCreatedAt,
+  pagingById,
+} from "../src/repository.js";
+import { type AssetFilter, AssetRepository, type AssetRow, assets } from "./support/assets.js";
 
 type Query = { sql: string; params: unknown[] };
 
-const row: AssetRow = { id: "a_1", key: "assets/a.png", size: 42, note: null };
+const createdAt = new Date("2026-01-01T00:00:00.000Z");
+const row: AssetRow = { id: "a_1", key: "assets/a.png", size: 42, note: null, createdAt };
 
 /** A pg-proxy connection that records the statements it runs and answers with `answer`. */
 const createProxy = (queries: Query[], answer: () => unknown[][]) =>
@@ -19,11 +32,71 @@ const createProxy = (queries: Query[], answer: () => unknown[][]) =>
 const createRepository = (data: readonly AssetRow[] = [row]) => {
   const queries: Query[] = [];
   const db = createProxy(queries, () =>
-    data.map(({ id, key, size, note }) => [id, key, size, note]),
+    data.map(({ id, key, size, note, createdAt }) => [id, key, size, note, createdAt]),
   );
 
   return { repository: new AssetRepository(db), queries };
 };
+
+/**
+ * Newest first, the id breaking ties: the shape a repository takes when timestamps repeat
+ * and the id alone does not order what pages walk.
+ */
+class NewestRepository extends AbstractDrizzleRepository<
+  typeof assets,
+  Asset,
+  AssetFilter,
+  CreatedAtCursor<Asset>
+> {
+  constructor(db: DrizzleDatabase) {
+    super(db, assets, pagingByCreatedAt(assets));
+  }
+
+  protected toDto(row: AssetRow): Asset {
+    return { id: row.id, key: row.key, size: row.size, note: row.note, createdAt: row.createdAt };
+  }
+
+  protected toRow(dto: Readonly<Partial<EntityInsert<Asset>>>): Partial<AssetRow> {
+    return { key: dto.key, size: dto.size, note: dto.note, createdAt: dto.createdAt };
+  }
+
+  override idFilter(ids: readonly EntityId<Asset>[]): AssetFilter {
+    return { id: [...ids] };
+  }
+}
+
+/** A table that records when a row was written as an ISO string instead of a timestamp. */
+const events = pgTable("events", {
+  id: text("id").primaryKey(),
+  createdAt: text("created_at").notNull(),
+});
+
+type Event = { readonly id: string; readonly createdAt: string };
+type EventRow = typeof events.$inferSelect;
+
+/** Newest first over a text timestamp: the same helper, the ordering left to the column. */
+class EventRepository extends AbstractDrizzleRepository<
+  typeof events,
+  Event,
+  EntityFilter<Event, SQL>,
+  CreatedAtCursor<Event>
+> {
+  constructor(db: DrizzleDatabase) {
+    super(db, events, pagingByCreatedAt(events));
+  }
+
+  protected toDto(row: EventRow): Event {
+    return row;
+  }
+
+  protected toRow(dto: Readonly<Partial<EntityInsert<Event>>>): Partial<EventRow> {
+    return dto;
+  }
+
+  override idFilter(ids: readonly EntityId<Event>[]): EntityFilter<Event, SQL> {
+    return { id: [...ids] };
+  }
+}
 
 describe("AbstractDrizzleRepository", () => {
   describe("reads", () => {
@@ -67,6 +140,15 @@ describe("AbstractDrizzleRepository", () => {
 
       expect(queries[0]?.sql).toContain('"assets"."size" = $1');
       expect(queries[0]?.params).toEqual([42]);
+    });
+
+    it("passes a sql filter value through unbound", async () => {
+      const { repository, queries } = createRepository();
+
+      await repository.findMany({ key: sql`lower('A.PNG')` });
+
+      expect(queries[0]?.sql).toContain('"assets"."key" = lower(\'A.PNG\')');
+      expect(queries[0]?.params).toEqual([]);
     });
 
     it("applies a limit", async () => {
@@ -113,18 +195,18 @@ describe("AbstractDrizzleRepository", () => {
       const { repository, queries } = createRepository();
 
       await expect(
-        repository.insert({ id: "a_1", key: "assets/a.png", size: 42, note: null }),
+        repository.insert({ id: "a_1", key: "assets/a.png", size: 42, note: null, createdAt }),
       ).resolves.toEqual(row);
 
       expect(queries[0]?.sql).toContain('insert into "assets"');
-      expect(queries[0]?.params).toEqual(["assets/a.png", 42, null]);
+      expect(queries[0]?.params).toEqual(["assets/a.png", 42, null, createdAt.toISOString()]);
     });
 
     it("rejects an insert the driver returns no row for", async () => {
       const repository = new AssetRepository(createProxy([], () => []));
 
       await expect(
-        repository.insert({ key: "assets/a.png", size: 42, note: null }),
+        repository.insert({ key: "assets/a.png", size: 42, note: null, createdAt }),
       ).rejects.toThrow(TypeError);
     });
 
@@ -185,6 +267,127 @@ describe("AbstractDrizzleRepository", () => {
       await expect(repository.deleteWhere({})).resolves.toEqual([]);
 
       expect(queries).toEqual([]);
+    });
+  });
+
+  describe("pagination", () => {
+    const asRows = (data: readonly AssetRow[]) =>
+      data.map(({ id, key, size, note, createdAt }) => [id, key, size, note, createdAt]);
+
+    it("orders by id and asks for one row more than the page", async () => {
+      const { repository, queries } = createRepository();
+
+      await repository.list({ limit: 2 });
+
+      expect(queries[0]?.sql).toContain('order by "assets"."id"');
+      expect(queries[0]?.sql).not.toContain('"assets"."id" >');
+      expect(queries[0]?.sql).toContain("limit $1");
+      expect(queries[0]?.params).toEqual([3]);
+    });
+
+    it("continues strictly after the cursor", async () => {
+      const { repository, queries } = createRepository([row, row]);
+
+      const page = await repository.list({ limit: 1, cursor: "a_1" });
+
+      expect(queries[0]?.sql).toContain('"assets"."id" > $1');
+      expect(queries[0]?.params).toEqual(["a_1", 2]);
+      expect(page.nextCursor).toBe(row.id);
+    });
+
+    it("scopes the cursor by the filter too", async () => {
+      const { repository, queries } = createRepository([row, row]);
+
+      await repository.list({ limit: 1, cursor: "a_1", filter: { size: 42 } });
+
+      expect(queries[0]?.sql).toContain('"assets"."size" = $1');
+      expect(queries[0]?.sql).toContain('"assets"."id" > $2');
+      expect(queries[0]?.params).toEqual([42, "a_1", 2]);
+    });
+
+    it("returns no cursor when the page is the last one", async () => {
+      const { repository } = createRepository([row]);
+
+      await expect(repository.list({ limit: 5 })).resolves.toEqual({
+        items: [row],
+        nextCursor: null,
+      });
+    });
+
+    it("pages newest first with a timestamp and id cursor", async () => {
+      const second: AssetRow = { ...row, id: "a_2", createdAt: new Date("2026-01-01T00:00:01Z") };
+      const queries: Query[] = [];
+      const repository = new NewestRepository(createProxy(queries, () => asRows([row, second])));
+
+      const page = await repository.list({ limit: 1, cursor: { createdAt, id: "a_2" } });
+
+      expect(queries[0]?.sql).toContain('order by "assets"."created_at" desc, "assets"."id" desc');
+      expect(queries[0]?.sql).toContain('"assets"."created_at" < $1');
+      expect(queries[0]?.sql).toContain('"assets"."id" < $3');
+      expect(queries[0]?.params).toEqual([
+        createdAt.toISOString(),
+        createdAt.toISOString(),
+        "a_2",
+        2,
+      ]);
+      expect(page.items).toEqual([row]);
+      expect(page.nextCursor).toEqual({ createdAt, id: "a_1" });
+    });
+
+    it("pages newest first when createdAt is stored as text", async () => {
+      const queries: Query[] = [];
+      const repository = new EventRepository(
+        createProxy(queries, () => [
+          ["e_1", "2026-01-01T00:00:00.000Z"],
+          ["e_0", "2025-12-31T00:00:00.000Z"],
+        ]),
+      );
+
+      const page = await repository.list({
+        limit: 1,
+        cursor: { createdAt: "2026-01-02T00:00:00.000Z", id: "e_2" },
+      });
+
+      expect(queries[0]?.sql).toContain('order by "events"."created_at" desc, "events"."id" desc');
+      expect(queries[0]?.params).toEqual([
+        "2026-01-02T00:00:00.000Z",
+        "2026-01-02T00:00:00.000Z",
+        "e_2",
+        2,
+      ]);
+      expect(page.nextCursor).toEqual({ createdAt: "2026-01-01T00:00:00.000Z", id: "e_1" });
+    });
+
+    it("rejects a default cursor on a table without an id column", () => {
+      const keys = pgTable("keys", { key: text("key").notNull() });
+      type KeyRow = typeof keys.$inferSelect;
+
+      class KeyRepository extends AbstractDrizzleRepository<
+        typeof keys,
+        Asset,
+        EntityFilter<Asset, SQL>,
+        string
+      > {
+        constructor(db: DrizzleDatabase) {
+          super(db, keys, pagingById(keys));
+        }
+
+        protected toDto(selected: KeyRow): Asset {
+          return { ...selected, id: selected.key, size: 0, note: null, createdAt };
+        }
+
+        protected toRow(dto: Readonly<Partial<EntityInsert<Asset>>>): Partial<KeyRow> {
+          return { key: dto.key };
+        }
+
+        override idFilter(ids: readonly EntityId<Asset>[]): EntityFilter<Asset, SQL> {
+          return { id: [...ids] };
+        }
+      }
+
+      expect(() => new KeyRepository(createProxy([], () => []))).toThrow(
+        'table has no "id" column',
+      );
     });
   });
 });

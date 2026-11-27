@@ -20,17 +20,32 @@ const grace: User = { id: 2, name: "Grace", age: 45 };
 
 class RecordingRepository extends AbstractRepository<User, RepositoryContext, UserFilter> {
   findManyResult: User[] = [];
+  fetchPageResult: User[] = [];
   patchWhereResult: User[] = [];
   deleteWhereResult: User[] = [];
 
   readonly idFilterCalls: UserId[][] = [];
   readonly findManyCalls: Array<Readonly<UserFilter & { limit?: number }>> = [];
+  readonly fetchPageCalls: Array<{
+    filter: Readonly<UserFilter> | undefined;
+    cursor: UserId | undefined;
+    limit: number;
+  }> = [];
   readonly patchWhereCalls: Array<{ filter: Readonly<UserFilter>; patch: UserPatch }> = [];
   readonly deleteWhereCalls: Array<Readonly<UserFilter>> = [];
 
   async findMany(filter: Readonly<UserFilter & { limit?: number }>): Promise<User[]> {
     this.findManyCalls.push(filter);
     return this.findManyResult;
+  }
+
+  protected async fetchPage(
+    filter: Readonly<UserFilter> | undefined,
+    cursor: UserId | undefined,
+    limit: number,
+  ): Promise<User[]> {
+    this.fetchPageCalls.push({ filter, cursor, limit });
+    return this.fetchPageResult;
   }
 
   async insert(_dto: Readonly<UserInsert>): Promise<User> {
@@ -58,7 +73,9 @@ function neverCalled<T>(): Promise<T> {
 }
 
 function createRepository() {
-  return new RecordingRepository({ isInTransaction: false }, neverCalled);
+  return new RecordingRepository({ isInTransaction: false }, neverCalled, {
+    read: (user) => user.id,
+  });
 }
 
 describe("AbstractRepository lookups", () => {
@@ -163,6 +180,59 @@ describe("AbstractRepository mutations", () => {
 
     await expect(repository.delete([])).resolves.toEqual([]);
     expect(repository.deleteWhereCalls).toEqual([]);
+  });
+});
+
+describe("AbstractRepository list", () => {
+  it("asks for one row more than the page holds", async () => {
+    const repository = createRepository();
+
+    await repository.list({ limit: 2 });
+
+    expect(repository.fetchPageCalls).toEqual([{ filter: undefined, cursor: undefined, limit: 3 }]);
+  });
+
+  it("returns the page and the cursor of its last item", async () => {
+    const repository = createRepository();
+    repository.fetchPageResult = [ada, grace, { id: 3, name: "Lin", age: 27 }];
+
+    const page = await repository.list({ limit: 2 });
+
+    expect(page.items).toEqual([ada, grace]);
+    expect(page.nextCursor).toBe(grace.id);
+  });
+
+  it("returns no next cursor for the last page", async () => {
+    const repository = createRepository();
+    repository.fetchPageResult = [ada];
+
+    const page = await repository.list({ limit: 2 });
+
+    expect(page.items).toEqual([ada]);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it("returns no next cursor when the page is empty", async () => {
+    const page = await createRepository().list({ limit: 2 });
+
+    expect(page).toEqual({ items: [], nextCursor: null });
+  });
+
+  it("forwards the filter and the cursor", async () => {
+    const repository = createRepository();
+    const filter: UserFilter = { name: "Ada" };
+
+    await repository.list({ limit: 5, cursor: 2, filter });
+
+    expect(repository.fetchPageCalls[0]).toEqual({ filter, cursor: 2, limit: 6 });
+  });
+
+  it("rejects a page size that is not a positive integer", async () => {
+    const repository = createRepository();
+
+    await expect(repository.list({ limit: 0 })).rejects.toThrow("page limit must be");
+    await expect(repository.list({ limit: 2.5 })).rejects.toThrow(RangeError);
+    expect(repository.fetchPageCalls).toEqual([]);
   });
 });
 

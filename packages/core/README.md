@@ -36,13 +36,27 @@ Two things to keep in mind:
   that matters, and note that a transaction rebinds the context by value, which pins the
   dependency for the length of that scope.
 
-## Status
+## Pagination
 
-Pre-1.0. The service and transaction primitives are under active development. While the API is
-being built, the package exposes a placeholder export:
+Every repository can list one page at a time. The cursor is whatever orders a row in that
+repository, the id by default, and it is opaque to the caller, which only hands it back:
 
 ```ts
-import { greet } from "@softzweig/spindle-core";
+const page = await assets.list({ limit: 20, filter: { size: 20 } });
 
-greet("world"); // "Hello, world!"
+if (page.nextCursor !== null) {
+  const next = await assets.list({ limit: 20, cursor: page.nextCursor });
+}
 ```
+
+`AbstractRepository` owns the arithmetic: it asks `fetchPage` for one row more than the page
+holds, which is what tells a full page from the last one without a count, and turns the last
+row into a cursor through the `Paging` definition the repository is built with. An adapter
+describes how rows are ordered and how a row becomes a cursor; `@softzweig/spindle-drizzle`
+and `@softzweig/spindle-memory` both ship ready-made definitions, including composite ones
+such as a timestamp paired with an id.
+
+## Status
+
+Pre-1.0. The service, transaction and repository primitives are under active development,
+so minor releases may still rename or reshape them.

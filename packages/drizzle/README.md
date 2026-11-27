@@ -13,12 +13,16 @@ and SQL types. The tested ranges are in `peerDependencies`.
 
 ## Usage
 
-Extend `AbstractDrizzleRepository` and supply the table, the two mappers, and
-how ids become a filter. The column map used to translate filters is derived
-from the table.
+Extend `AbstractDrizzleRepository` and supply the table, the two mappers, how ids
+become a filter, and how the repository pages. The column map used to translate
+filters is derived from the table.
 
 ```ts
-import { AbstractDrizzleRepository } from "@softzweig/spindle-drizzle";
+import {
+  AbstractDrizzleRepository,
+  type DrizzleDatabase,
+  pagingById,
+} from "@softzweig/spindle-drizzle";
 import type { EntityFilter, EntityId, EntityInsert } from "@softzweig/spindle-core/repository";
 import { assets } from "./schema.js";
 
@@ -26,7 +30,10 @@ type Asset = typeof assets.$inferInsert;
 type AssetFilter = EntityFilter<Asset>;
 
 export class AssetRepository extends AbstractDrizzleRepository<typeof assets, Asset, AssetFilter> {
-  protected readonly table = assets;
+  constructor(db: DrizzleDatabase) {
+    // Pages by the row id; pass your own DrizzlePaging for anything else.
+    super(db, assets, pagingById(assets));
+  }
 
   protected toDto(row: typeof assets.$inferSelect): Asset {
     return { id: row.id, key: row.key, size: row.size };
@@ -62,6 +69,62 @@ import { SqliteRepository } from "@softzweig/spindle-drizzle/sqlite-core";
 
 const assets = PostgresRepository.of(db, assetsTable);
 ```
+
+## Pagination
+
+`list` returns one page and the cursor that continues it. A repository declares how its
+pages are ordered and read by passing a `DrizzlePaging` to `super`; `pagingById` covers the
+common case of paging by the row id, and `pagingByCreatedAt` the one of paging newest first:
+
+```ts
+import {
+  AbstractDrizzleRepository,
+  type CreatedAtCursor,
+  type DrizzleDatabase,
+  pagingByCreatedAt,
+} from "@softzweig/spindle-drizzle";
+
+class NewestAssets extends AbstractDrizzleRepository<
+  typeof assets,
+  Asset,
+  AssetFilter,
+  CreatedAtCursor<Asset>
+> {
+  constructor(db: DrizzleDatabase) {
+    // Orders by createdAt, newest first, with the id breaking ties.
+    super(db, assets, pagingByCreatedAt(assets));
+  }
+}
+```
+
+A paging spec is just `keys` and `read`, so anything else is declared the same way:
+
+```ts
+super(db, assets, {
+  keys: [
+    { column: assets.size, direction: "desc", of: (cursor) => cursor.size },
+    { column: assets.id, direction: "desc", of: (cursor) => cursor.id },
+  ],
+  read: (asset) => ({ size: asset.size, id: asset.id }),
+});
+```
+
+`keys` is the order, narrowest first, and `read` builds the cursor a row hands to the next
+page. The `order by` and the keyset `where` are derived from them, so a page resumes after
+its last row instead of skipping or repeating rows that share a leading key. The cursor type
+is the fourth generic and defaults to `EntityId<TEntity>`.
+
+```ts
+const page = await assets.list({ limit: 20, filter: { size: 20 } });
+const next = await assets.list({ limit: 20, cursor: page.nextCursor ?? undefined });
+```
+
+`nextCursor` is `null` on the last page. The repository asks the database for one row more
+than the page holds, which is what tells a full page from the last one without a count.
+
+This package runs the same repository contract as `@softzweig/spindle-memory`
+(`packages/core/test/contract`) against PGlite and libSQL, so the adapters stay
+interchangeable: the same call returns the same result, transactions included.
 
 ## Transactions
 

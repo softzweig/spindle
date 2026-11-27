@@ -60,6 +60,9 @@ importers:
       '@softzweig/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.20.7
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
