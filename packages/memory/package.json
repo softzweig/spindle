@@ -1,6 +1,6 @@
 {
   "name": "@softzweig/spindle-memory",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "In-memory repository bindings for Spindle.",
   "license": "MIT",
   "repository": {
