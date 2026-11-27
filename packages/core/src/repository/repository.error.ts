@@ -1,4 +1,4 @@
-import { SpindleErrorCode } from "../result.js";
+import { SpindleError, SpindleErrorCode } from "../result.js";
 
 /**
  * A repository failure a caller is expected to branch on.
@@ -12,9 +12,9 @@ import { SpindleErrorCode } from "../result.js";
  * insert; anything it cannot classify is left as the driver's own error.
  *
  * @note
- * This is oddly similar to {@link ServiceError}, which it is. It doesn't share one
- * implementation though, as there are semantic differences between service and repository
- * failures. ~vz
+ * It extends {@link SpindleError} like `ServiceError`, because a caller maps both the same
+ * way, and stays a separate class all the same: a repository reports the state of its
+ * storage, a service reports the outcome of a use case. ~vz
  *
  * @example
  * ```ts
@@ -29,13 +29,9 @@ import { SpindleErrorCode } from "../result.js";
  *
  * @human
  */
-export class RepositoryError extends Error {
-  constructor(
-    readonly code: SpindleErrorCode,
-    message: string,
-    readonly details?: Record<string, unknown>,
-  ) {
-    super(message);
+export class RepositoryError extends SpindleError {
+  constructor(code: SpindleErrorCode, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "RepositoryError";
   }
 

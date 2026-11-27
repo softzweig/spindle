@@ -1,4 +1,4 @@
-import { SpindleErrorCode } from "../result.js";
+import { SpindleError, SpindleErrorCode } from "../result.js";
 
 /** What an authorization hook may answer: only `true` permits, a string refuses with its reason. */
 export type AuthorizationVerdict = boolean | undefined | null | string;
@@ -7,20 +7,16 @@ export type AuthorizationVerdict = boolean | undefined | null | string;
  * A domain outcome that services throw and consumers translate into their own
  * transport (HTTP status, tRPC code, queue retry policy).
  *
- * This class and `RepositoryError` carry the same vocabulary and deliberately stay
- * separate: a repository reports the state of its storage, a service reports the
- * outcome of a use case. Repositories throw `RepositoryError`, services translate it,
- * and the default `toServiceFailure` understands both.
+ * Shares the shape of every Spindle error with `RepositoryError`, but stays its own class: a
+ * repository reports the state of its storage, a service reports the outcome of a use case.
+ * Repositories throw `RepositoryError`, services translate it, and `toServiceFailure`
+ * understands anything that extends `SpindleError`.
  *
  * @human
  */
-export class ServiceError extends Error {
-  constructor(
-    readonly code: SpindleErrorCode,
-    message: string,
-    readonly details?: Record<string, unknown>,
-  ) {
-    super(message);
+export class ServiceError extends SpindleError {
+  constructor(code: SpindleErrorCode, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "ServiceError";
   }
 

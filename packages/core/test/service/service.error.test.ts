@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "vitest";
-import { SpindleErrorCode } from "../../src/result.js";
+import { SpindleError, SpindleErrorCode } from "../../src/result.js";
 import { ServiceError } from "../../src/service/service.error.js";
 
 function captureError(fn: () => void): unknown {
@@ -17,6 +17,7 @@ describe("ServiceError", () => {
     const error = new ServiceError(SpindleErrorCode.CONFLICT, "Conflict", details);
 
     expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(SpindleError);
     expect(error.name).toBe("ServiceError");
     expect(error.code).toBe(SpindleErrorCode.CONFLICT);
     expect(error.message).toBe("Conflict");

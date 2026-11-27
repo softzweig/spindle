@@ -1,6 +1,6 @@
 import { describe, expect, it, test } from "vitest";
 import { RepositoryError } from "../../src/repository/repository.error.js";
-import { SpindleErrorCode } from "../../src/result.js";
+import { SpindleError, SpindleErrorCode } from "../../src/result.js";
 
 describe("RepositoryError", () => {
   it("carries code, message, details, and a stable name", () => {
@@ -8,6 +8,7 @@ describe("RepositoryError", () => {
     const error = new RepositoryError(SpindleErrorCode.CONFLICT, "Conflict", details);
 
     expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(SpindleError);
     expect(error.name).toBe("RepositoryError");
     expect(error.code).toBe(SpindleErrorCode.CONFLICT);
     expect(error.message).toBe("Conflict");

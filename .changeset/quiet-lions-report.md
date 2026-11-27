@@ -9,6 +9,9 @@ Constraint failures arrive as a `RepositoryError` instead of a driver's own erro
 - `RepositoryError` gains the same factories as `ServiceError` (`of`, `notFound`, `invalidInput`,
   `forbidden`, `conflict`, `preconditionFailed`, `unavailable`, `unknown`), so an adapter reports
   the codes its backend can actually detect.
+- Both errors extend `SpindleError`, the base that carries `code`, `message` and `details`. They
+  stay separate classes, but a transport mapping checks the base once instead of listing every
+  layer, and `toServiceFailure` maps any `SpindleError` without being changed again.
 - `@softzweig/spindle-drizzle` translates constraint failures on insert, update and delete: a
   unique index or primary key becomes `conflict`, and a not-null, foreign key or check violation
   becomes `invalid_input`. The driver's own message and code are kept, and anything else is

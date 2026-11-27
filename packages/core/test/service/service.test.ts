@@ -1,7 +1,7 @@
 import { describe, expect, it, test, vi } from "vitest";
 import { RepositoryError } from "../../src/repository/repository.error.js";
 import type { SpindleFailure } from "../../src/result.js";
-import { SpindleErrorCode } from "../../src/result.js";
+import { SpindleError, SpindleErrorCode } from "../../src/result.js";
 import { ServiceError } from "../../src/service/service.error.js";
 import { ServiceExecution } from "../../src/service/service.execution.js";
 import { Service, type ServiceContext, toServiceFailure } from "../../src/service/service.js";
@@ -68,6 +68,21 @@ describe("toServiceFailure", () => {
       code: SpindleErrorCode.NOT_FOUND,
       message: "Missing",
       details: { id: 1 },
+    });
+  });
+
+  it("preserves an error from a layer core does not know", () => {
+    class CacheError extends SpindleError {
+      constructor() {
+        super(SpindleErrorCode.UNAVAILABLE, "Cache is down");
+        this.name = "CacheError";
+      }
+    }
+
+    expect(toServiceFailure(new CacheError())).toEqual({
+      ok: false,
+      code: SpindleErrorCode.UNAVAILABLE,
+      message: "Cache is down",
     });
   });
 

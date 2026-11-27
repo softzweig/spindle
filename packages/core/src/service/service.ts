@@ -1,12 +1,10 @@
-import { RepositoryError } from "../repository/repository.error.js";
-import { SpindleErrorCode, type SpindleFailure } from "../result.js";
+import { SpindleError, SpindleErrorCode, type SpindleFailure } from "../result.js";
 import {
   BaseTransactional,
   FOLLOWS_CONTEXT,
   type TransactionalContext,
   type TransactionRunner,
 } from "../transactional.js";
-import { ServiceError } from "./service.error.js";
 import { ServiceExecution } from "./service.execution.js";
 import { Lazy } from "./service.lazy.js";
 
@@ -231,7 +229,7 @@ function resolveLazies<TContext extends ServiceContext>(context: TContext): TCon
  * @human
  */
 export function toServiceFailure(error: unknown) {
-  if (error instanceof ServiceError || error instanceof RepositoryError) {
+  if (error instanceof SpindleError) {
     return {
       ok: false,
       code: error.code,

@@ -36,6 +36,26 @@ export const SpindleErrorCode = Object.freeze({
 });
 
 /**
+ * The shape every Spindle error carries: a code a caller branches on, a message for humans,
+ * and free-form details.
+ *
+ * Subclasses name the layer that failed (`ServiceError`, `RepositoryError`), so a call site
+ * that needs to know where a failure came from narrows to the subclass, while a transport
+ * mapping checks this base once and keeps working for the next layer that adds an error.
+ *
+ * @human
+ */
+export abstract class SpindleError extends Error {
+  constructor(
+    readonly code: SpindleErrorCode,
+    message: string,
+    readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+  }
+}
+
+/**
  * A failed call.
  *
  * `message` is for humans; `details` carries machine-readable context such as

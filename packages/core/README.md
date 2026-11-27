@@ -78,6 +78,11 @@ try {
 `toServiceFailure` maps it already, so a repository error escaping a prepared execution keeps
 its code and message instead of collapsing into `unknown`.
 
+`ServiceError` and `RepositoryError` are both `SpindleError`, a base that carries nothing but
+`code`, `message` and `details`. A transport mapping checks the base once, so the next layer
+that adds an error maps itself without touching core, while a call site that needs to know
+which layer failed narrows to the subclass.
+
 `AbstractRepository` reports `not_found` for a patch that matched nothing. What a backend can
 detect on its own, an adapter reports too: a duplicate id is `conflict`, and a violated column
 rule is `invalid_input`. Everything else stays the driver's error, unflattened.
