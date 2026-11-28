@@ -1,5 +1,12 @@
 # @softzweig/spindle-drizzle
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`204b8db`](https://github.com/softzweig/spindle/commit/204b8db40c8ef8b836c887d3091272bf0ebd4e10)]:
+  - @softzweig/spindle-core@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

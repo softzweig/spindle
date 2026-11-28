@@ -1,5 +1,18 @@
 # @softzweig/spindle-memory
 
+## 0.2.0
+
+### Minor Changes
+
+- [#15](https://github.com/softzweig/spindle/pull/15) [`19e280b`](https://github.com/softzweig/spindle/commit/19e280b4b3fdca991935f12672ae088091708f96) Thanks [@vinznt](https://github.com/vinznt)! - Filter values compare by structure with `fast-deep-equal`, so a date, an array or a nested
+  object a caller built separately matches the row holding its equal instead of requiring the
+  same reference.
+
+### Patch Changes
+
+- Updated dependencies [[`204b8db`](https://github.com/softzweig/spindle/commit/204b8db40c8ef8b836c887d3091272bf0ebd4e10)]:
+  - @softzweig/spindle-core@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

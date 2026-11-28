@@ -1,5 +1,11 @@
 # @softzweig/spindle-core
 
+## 0.1.2
+
+### Patch Changes
+
+- [`204b8db`](https://github.com/softzweig/spindle/commit/204b8db40c8ef8b836c887d3091272bf0ebd4e10) Thanks [@vinznt](https://github.com/vinznt)! - Fixes not using `limit: 1` within `findOne` implementation
+
 ## 0.1.1
 
 ### Patch Changes
