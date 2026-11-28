@@ -1,5 +1,11 @@
 # @softzweig/spindle-core
 
+## 0.1.1
+
+### Patch Changes
+
+- [`13afa65`](https://github.com/softzweig/spindle/commit/13afa65ab62032528a469ad59b1755496f8ff2e9) Thanks [@vinznt](https://github.com/vinznt)! - Fixed assertions in ServiceError not actually returning "asserts condition"
+
 ## 0.1.0
 
 ### Minor Changes
