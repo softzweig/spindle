@@ -62,23 +62,43 @@ export class ServiceError extends SpindleError {
     throw ServiceError.of(code, message, details);
   }
 
-  static assertFound(condition: unknown, message: string, details?: Record<string, unknown>) {
+  static assertFound(
+    condition: unknown,
+    message: string,
+    details?: Record<string, unknown>,
+  ): asserts condition {
     ServiceError.assert(condition, message, details, SpindleErrorCode.NOT_FOUND);
   }
 
-  static assertConflict(condition: unknown, message: string, details?: Record<string, unknown>) {
+  static assertConflict(
+    condition: unknown,
+    message: string,
+    details?: Record<string, unknown>,
+  ): asserts condition {
     ServiceError.assert(condition, message, details, SpindleErrorCode.CONFLICT);
   }
 
-  static assertAllowed(condition: unknown, message: string, details?: Record<string, unknown>) {
+  static assertAllowed(
+    condition: unknown,
+    message: string,
+    details?: Record<string, unknown>,
+  ): asserts condition {
     ServiceError.assert(condition, message, details, SpindleErrorCode.FORBIDDEN);
   }
 
-  static assertValidInput(condition: unknown, message: string, details?: Record<string, unknown>) {
+  static assertValidInput(
+    condition: unknown,
+    message: string,
+    details?: Record<string, unknown>,
+  ): asserts condition {
     ServiceError.assert(condition, message, details, SpindleErrorCode.INVALID_INPUT);
   }
 
-  static assertAvailable(condition: unknown, message: string, details?: Record<string, unknown>) {
+  static assertAvailable(
+    condition: unknown,
+    message: string,
+    details?: Record<string, unknown>,
+  ): asserts condition {
     ServiceError.assert(condition, message, details, SpindleErrorCode.UNAVAILABLE);
   }
 
