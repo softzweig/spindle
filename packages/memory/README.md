@@ -33,8 +33,10 @@ id throws a `RepositoryError` with `conflict`, the same answer a primary key giv
 
 Filter keys are entity properties: a scalar matches equality, an array matches
 membership, `null` matches a null or absent value, and an undefined value is
-ignored. An empty array matches nothing, and a key the rows do not have throws,
-the same way an unmapped column does for SQL.
+ignored. Values compare by structure with `fast-deep-equal`, so a date or a
+nested object a caller built separately still matches the row holding its equal.
+An empty array matches nothing, and a key the rows do not have throws, the same
+way an unmapped column does for SQL.
 
 This package runs the same repository contract as `@softzweig/spindle-drizzle`
 (`packages/core/test/contract`), so the two are interchangeable: the same call

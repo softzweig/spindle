@@ -1,3 +1,4 @@
+import type { EntityFilter } from "@softzweig/spindle-core/repository";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   type Asset,
@@ -31,6 +32,41 @@ describe("MemoryRepository", () => {
       const rows = [await givenAsset(), await givenAsset()];
 
       await expect(assets.findMany({})).resolves.toEqual(rows);
+    });
+
+    it("matches a date by its value rather than its identity", async () => {
+      const createdAt = new Date("2026-01-01T00:00:00.000Z");
+      const asset = await givenAsset({ createdAt });
+
+      await expect(assets.findMany({ createdAt: new Date(createdAt.getTime()) })).resolves.toEqual([
+        asset,
+      ]);
+    });
+  });
+
+  describe("filters", () => {
+    type Document = { readonly id: string; readonly meta: { readonly tags: readonly string[] } };
+
+    it("matches a nested object by its structure", async () => {
+      const documents = MemoryRepository.byId<Document, EntityFilter<Document>>();
+      const document = await documents.insert({ id: "a", meta: { tags: ["one", "two"] } });
+      await documents.insert({ id: "b", meta: { tags: ["two"] } });
+
+      await expect(documents.findMany({ meta: { tags: ["one", "two"] } })).resolves.toEqual([
+        document,
+      ]);
+      await expect(documents.findMany({ meta: { tags: ["one"] } })).resolves.toEqual([]);
+    });
+
+    it("matches any equal value in an array filter", async () => {
+      const shared = new Date("2026-01-01T00:00:00.000Z");
+      const asset = await givenAsset({ createdAt: shared });
+
+      const found = await assets.findMany({
+        createdAt: [new Date("2025-01-01T00:00:00.000Z"), new Date(shared.getTime())],
+      });
+
+      expect(found).toEqual([asset]);
     });
   });
 
