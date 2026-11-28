@@ -87,7 +87,7 @@ describe("AbstractRepository lookups", () => {
 
     await expect(repository.findById(1)).resolves.toBe(ada);
     expect(repository.idFilterCalls).toEqual([[1]]);
-    expect(repository.findManyCalls).toEqual([{ id: [1] }]);
+    expect(repository.findManyCalls).toEqual([{ id: [1], limit: 1 }]);
   });
 
   it("findById returns null when nothing matches", async () => {
@@ -112,13 +112,13 @@ describe("AbstractRepository lookups", () => {
     expect(repository.findManyCalls).toEqual([]);
   });
 
-  it("findOne returns the first match and forwards the filter", async () => {
+  it("findOne returns the first match and asks for a single row", async () => {
     const repository = createRepository();
     const filter: UserFilter = { name: "Ada" };
     repository.findManyResult = [ada, grace];
 
     await expect(repository.findOne(filter)).resolves.toBe(ada);
-    expect(repository.findManyCalls[0]).toBe(filter);
+    expect(repository.findManyCalls[0]).toEqual({ name: "Ada", limit: 1 });
   });
 
   it("findOne returns null when nothing matches", async () => {

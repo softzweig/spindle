@@ -103,7 +103,7 @@ export abstract class AbstractRepository<
 
   /** First match of `filter`; `null` when nothing matches. */
   async findOne(filter: Readonly<TFilter>): Promise<TEntity | null> {
-    const [found] = await this.findMany(filter);
+    const [found] = await this.findMany({ ...filter, limit: 1 });
     return found ?? null;
   }
 

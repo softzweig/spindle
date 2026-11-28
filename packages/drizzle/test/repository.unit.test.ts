@@ -113,7 +113,8 @@ describe("AbstractDrizzleRepository", () => {
 
       expect(queries[0]?.sql).toContain('from "assets"');
       expect(queries[0]?.sql).toContain('"assets"."id" in ($1)');
-      expect(queries[0]?.params).toEqual(["a_1"]);
+      expect(queries[0]?.sql).toContain("limit $2");
+      expect(queries[0]?.params).toEqual(["a_1", 1]);
     });
 
     it("reads many rows with an in clause", async () => {
