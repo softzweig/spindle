@@ -11,6 +11,7 @@ import {
   RepositoryError,
 } from "@softzweig/spindle-core/repository";
 import { TRANSACTION_EXECUTOR } from "@softzweig/spindle-core/transactional";
+import deepEqual from "fast-deep-equal";
 import { MemoryStore } from "./store.js";
 
 /** The context a memory repository passes to a transaction callback. */
@@ -56,8 +57,10 @@ export type CreatedAtCursor<TEntity extends Entity & Readonly<{ createdAt: Creat
  * for tests and for wiring a service before a real store exists. Filters follow
  * the same rules as the SQL adapters, a scalar matches equality, an array matches
  * membership, `null` matches a null or absent value, and an undefined value is
- * ignored. Writes with no clause in their filter match nothing, again like the SQL
- * adapters, so a forgotten filter cannot take the whole store with it.
+ * ignored. Values compare by structure, so a date or an object a caller built
+ * separately still matches the row holding its equal. Writes with no clause in
+ * their filter match nothing, again like the SQL adapters, so a forgotten filter
+ * cannot take the whole store with it.
  *
  * A transaction snapshots the store it is bound to. Repositories constructed on
  * the same store share their rows and their rollbacks; repositories on separate
@@ -198,6 +201,9 @@ export class MemoryRepository<
   /**
    * Whether `entity` matches every defined key of `filter`.
    *
+   * Values compare by structure rather than identity, so a date, an array or a nested
+   * object a caller built separately still matches the stored row.
+   *
    * Protected so a custom filter can carry semantics the default property comparison cannot
    * express, the way a dialect repository overrides its own. A key the row does not have is
    * a mistake, the same way a filter on an unmapped column is for SQL, and throws instead of
@@ -218,7 +224,9 @@ export class MemoryRepository<
       // A row whose value is null behaves like a NULL column.
       if (expected === null) return actual == null;
 
-      return Array.isArray(expected) ? expected.includes(actual) : actual === expected;
+      return Array.isArray(expected)
+        ? expected.some((value) => deepEqual(actual, value))
+        : deepEqual(actual, expected);
     });
   }
 }
